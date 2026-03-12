@@ -33,6 +33,7 @@ Always use `--output json` for structured results you can parse and present clea
 ### App Discovery
 
 **search-apps**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js search-apps --queries "slack,gmail,notion" --output json
 ```
@@ -40,21 +41,25 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 ### Component Discovery
 
 **search-components**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js search-components --raw '{"queries": [{"app": "slack", "query": "send message"}]}' --output json
 ```
 
 **get-app-components**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-app-components --app slack --component-type action --output json
 ```
 
 **bulk-get-components**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js bulk-get-components --apps "slack,gmail" --component-type action --output json
 ```
 
 **get-component-definition**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-component-definition --key slack_slack-send-message --output json
 ```
@@ -62,6 +67,7 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 ### Accounts
 
 **get-accounts**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-accounts --app slack --output json
 ```
@@ -70,6 +76,7 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 
 **direct-execute-action**
 Before calling:
+
 1. Use `get-component-definition` to get the input schema
 2. Use `get-accounts` to verify the user has a connected account
 3. Pass auth as `{ "app_slug": { "authProvisionId": "<token>" } }`
@@ -81,16 +88,19 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 ### Web Tools (no auth required)
 
 **direct-execute-web-search**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-web-search --query "TypeScript best practices" --limit 5 --output json
 ```
 
 **direct-execute-web-scrape**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-web-scrape --url "https://example.com" --formats markdown --only-main-content true --output json
 ```
 
 **direct-execute-api-call**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-api-call --url "https://api.example.com/data" --method GET --output json
 ```
@@ -98,26 +108,31 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 ### Twitter (no connected account required)
 
 **direct-execute-twitter-get-tweets**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-twitter-get-tweets --query "AI agents" --limit 5 --output json
 ```
 
 **direct-execute-twitter-get-profiles**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-twitter-get-profiles --screen-name elonmusk --output json
 ```
 
 **direct-execute-twitter-get-recent-posts**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-twitter-get-recent-posts --screen-name elonmusk --output json
 ```
 
 **direct-execute-twitter-get-user-id**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-twitter-get-user-id --screen-name elonmusk --output json
 ```
 
 **direct-execute-twitter-get-multiple-profiles**
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-twitter-get-multiple-profiles --user-ids "123,456" --output json
 ```
