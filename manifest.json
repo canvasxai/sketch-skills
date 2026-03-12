@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "canvas": {
+      "name": "Canvas",
+      "description": "App integrations, automation, web search/scrape, API calls via Canvas AI",
+      "version": "1.0.0",
+      "path": "skills/canvas"
+    },
+    "icp-discovery": {
+      "name": "ICP Discovery",
+      "description": "Ideal customer profile discovery and market validation",
+      "version": "1.0.0",
+      "path": "skills/icp-discovery"
+    }
+  }
+}
