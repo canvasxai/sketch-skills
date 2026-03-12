@@ -150,4 +150,4 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 
 - Non-zero exit code: show the error message to the user
 - 401/403 in output: tell user the API key may be invalid, ask an admin to check the Canvas integration provider config in the dashboard
-- Missing connected account: guide user to set up accounts in Canvas (app.canvasx.ai) first
+- Missing connected account: guide user to set up accounts in Sketch dashboard
