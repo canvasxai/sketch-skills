@@ -44292,7 +44292,7 @@ const embeddedSchemas = {
 		"properties": {
 			"componentKey": {
 				"type": "string",
-				"description": "Canvas action key (e.g. fireflies-list-transcripts)"
+				"description": "Canvas action key (e.g. fireflies-list-transcripts, twitter-get-tweets, clickup-create-task)"
 			},
 			"configuredProps": {
 				"type": "object",
@@ -44362,120 +44362,6 @@ const embeddedSchemas = {
 			}
 		},
 		"required": ["url"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_api_call": {
-		"type": "object",
-		"properties": {
-			"url": { "type": "string" },
-			"method": { "type": "string" },
-			"headers": {
-				"type": "object",
-				"propertyNames": { "type": "string" },
-				"additionalProperties": { "type": "string" }
-			},
-			"body": {},
-			"timeout": { "type": "number" }
-		},
-		"required": ["url"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_twitter_get_tweets": {
-		"type": "object",
-		"properties": {
-			"tweetIds": { "type": "string" },
-			"tweetUrls": { "type": "string" },
-			"query": { "type": "string" },
-			"limit": { "type": "number" }
-		},
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_twitter_get_user_id": {
-		"type": "object",
-		"properties": { "screenName": { "type": "string" } },
-		"required": ["screenName"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_twitter_get_profiles": {
-		"type": "object",
-		"properties": { "screenName": { "type": "string" } },
-		"required": ["screenName"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_twitter_get_multiple_profiles": {
-		"type": "object",
-		"properties": { "userIds": { "type": "string" } },
-		"required": ["userIds"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_twitter_get_recent_posts": {
-		"type": "object",
-		"properties": { "screenName": { "type": "string" } },
-		"required": ["screenName"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_aimfox": {
-		"type": "object",
-		"properties": {
-			"key": {
-				"type": "string",
-				"description": "Aimfox Canvas action key"
-			},
-			"configuredProps": {
-				"type": "object",
-				"propertyNames": { "type": "string" },
-				"additionalProperties": {},
-				"description": "Action configuration"
-			}
-		},
-		"required": ["key", "configuredProps"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_fireflies": {
-		"type": "object",
-		"properties": {
-			"key": {
-				"type": "string",
-				"description": "Fireflies Canvas action key"
-			},
-			"configuredProps": {
-				"type": "object",
-				"propertyNames": { "type": "string" },
-				"additionalProperties": {},
-				"description": "Action configuration"
-			}
-		},
-		"required": ["key", "configuredProps"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"direct_execute_github_add_item_to_project": {
-		"type": "object",
-		"properties": {
-			"orgLogin": { "type": "string" },
-			"repoName": { "type": "string" },
-			"projectNumber": {
-				"type": "integer",
-				"exclusiveMinimum": 0,
-				"maximum": 9007199254740991
-			},
-			"title": { "type": "string" },
-			"body": { "type": "string" },
-			"statusName": { "type": "string" },
-			"assigneeLogins": {
-				"type": "array",
-				"items": { "type": "string" }
-			},
-			"labelNames": {
-				"type": "array",
-				"items": { "type": "string" }
-			}
-		},
-		"required": [
-			"orgLogin",
-			"repoName",
-			"projectNumber",
-			"title"
-		],
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	},
 	"user_secrets_get_status": {
@@ -44552,7 +44438,7 @@ const generatorTools = [
 	},
 	{
 		"name": "direct-execute-canvas-action",
-		"description": "Execute a Canvas custom action directly (Fireflies, Aimfox, or future integrations). Uses the authenticated user's API key from Settings → Secrets for the corresponding app. Use this for action keys like fireflies-list-transcripts, fireflies-get-transcript, aimfox-list-accounts, aimfox-create-lead-note, etc. Discover keys via get_components with app=\"fireflies\" or app=\"aimfox\". Do not use for Pipedream actions — use direct_execute_action instead. configuredProps must match the action's required/optional fields from the component definition.",
+		"description": "Execute a Canvas action directly. Supports Fireflies, Aimfox, GitHub, Twitter, LinkedIn, and ClickUp. Uses the authenticated user's stored credentials where required (Fireflies, Aimfox, GitHub, ClickUp). Twitter and LinkedIn use system-level credentials. Discover available keys via get_components with app='fireflies', 'aimfox', 'github', 'twitter', 'linkedin', or 'clickup'. configuredProps must match the action's required/optional fields from the component definition. Do not use for Pipedream actions — use direct_execute_action instead.",
 		"usage": "direct-execute-canvas-action --component-key <component-key> --configured-props <configured-props> [--raw <json>]",
 		"flags": "--component-key <component-key> --configured-props <configured-props> [--raw <json>]"
 	},
@@ -44569,60 +44455,6 @@ const generatorTools = [
 		"flags": "--url <url> [--formats <formats:markdown|html|rawHtml|links|images|screenshot|summary|json>] [--only-main-content <only-main-content:true|false>] [--timeout <timeout:number>] [--platform <platform:linkedin|instagram|reddit|general|auto>] [--raw <json>]"
 	},
 	{
-		"name": "direct-execute-api-call",
-		"description": "Execute a raw HTTP API call to any URL. Use this for REST API requests where no dedicated component exists. Supports any HTTP method (GET, POST, PUT, DELETE, etc.). Pass request headers as key-value pairs and body as any JSON-serializable value. Does not require authentication — include auth headers manually if the target API needs them.",
-		"usage": "direct-execute-api-call --url <url> [--method <method>] [--headers <headers>] [--body <body>] [--timeout <timeout:number>] [--raw <json>]",
-		"flags": "--url <url> [--method <method>] [--headers <headers>] [--body <body>] [--timeout <timeout:number>] [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-twitter-get-tweets",
-		"description": "Fetch tweets by tweet IDs, tweet URLs, or a search query. Provide at least one of tweetIds, tweetUrls, or query. tweetIds and tweetUrls are comma-separated strings. Use limit to cap the number of results returned. Does not require authentication.",
-		"usage": "direct-execute-twitter-get-tweets [--tweet-ids <tweet-ids>] [--tweet-urls <tweet-urls>] [--query <query>] [--limit <limit:number>] [--raw <json>]",
-		"flags": "[--tweet-ids <tweet-ids>] [--tweet-urls <tweet-urls>] [--query <query>] [--limit <limit:number>] [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-twitter-get-user-id",
-		"description": "Resolve a Twitter screen name (handle) to its numeric user ID. Pass the screen name without the '@' prefix. Use the returned ID with direct_execute_twitter_get_multiple_profiles if needed. Does not require a connected account.",
-		"usage": "direct-execute-twitter-get-user-id --screen-name <screen-name> [--raw <json>]",
-		"flags": "--screen-name <screen-name> [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-twitter-get-profiles",
-		"description": "Fetch a single Twitter user's profile by screen name. Returns profile metadata including name, bio, follower count, etc. Pass the screen name without the '@' prefix. For multiple profiles by user ID, use direct_execute_twitter_get_multiple_profiles instead. Does not require a connected account.",
-		"usage": "direct-execute-twitter-get-profiles --screen-name <screen-name> [--raw <json>]",
-		"flags": "--screen-name <screen-name> [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-twitter-get-multiple-profiles",
-		"description": "Fetch multiple Twitter profiles by their numeric user IDs. Pass userIds as a comma-separated string of IDs. Use direct_execute_twitter_get_user_id first to resolve screen names to IDs if needed. Does not require a connected account.",
-		"usage": "direct-execute-twitter-get-multiple-profiles --user-ids <user-ids> [--raw <json>]",
-		"flags": "--user-ids <user-ids> [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-twitter-get-recent-posts",
-		"description": "Fetch recent posts/tweets from a Twitter user by screen name. Pass the screen name without the '@' prefix. Returns the user's latest tweets in reverse chronological order. Does not require a connected account.",
-		"usage": "direct-execute-twitter-get-recent-posts --screen-name <screen-name> [--raw <json>]",
-		"flags": "--screen-name <screen-name> [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-aimfox",
-		"description": "Execute an Aimfox Canvas action directly (e.g. aimfox-list-accounts, aimfox-list-templates, aimfox-create-lead-note). Uses the authenticated user's Aimfox API key from Settings → Secrets → Aimfox. key must be a valid Aimfox Canvas action key from the Aimfox component registry (discoverable via get_components with app=\"aimfox\"); configuredProps must match that action's required/optional fields. Do not invent keys.",
-		"usage": "direct-execute-aimfox --key <key> --configured-props <configured-props> [--raw <json>]",
-		"flags": "--key <key> --configured-props <configured-props> [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-fireflies",
-		"description": "Execute a Fireflies Canvas action directly (e.g. fireflies-list-transcripts, fireflies-get-transcript, fireflies-list-bites). Uses the authenticated user's Fireflies API key from Settings → Secrets → Fireflies. key must be a valid Fireflies Canvas action key from the Fireflies component registry (discoverable via get_components with app=\"fireflies\"); configuredProps must match that action's required/optional fields. Do not invent keys.",
-		"usage": "direct-execute-fireflies --key <key> --configured-props <configured-props> [--raw <json>]",
-		"flags": "--key <key> --configured-props <configured-props> [--raw <json>]"
-	},
-	{
-		"name": "direct-execute-github-add-item-to-project",
-		"description": "Create a new GitHub issue and add it to a Projects V2 board for the authenticated user. Uses the user's stored GitHub Personal Access Token (PAT) from the Canvas secrets registry — the PAT is NOT passed in tool input. You MUST ensure the user has configured their GitHub secrets (provider \"github\", key \"pat\") before calling this tool. Inputs accept human-readable values: org/owner login, repository name, project number, status/column name, assignee usernames, and label names. All IDs are resolved at execution time via the GitHub GraphQL API.",
-		"usage": "direct-execute-github-add-item-to-project --org-login <org-login> --repo-name <repo-name> --project-number <project-number:number> --title <title> [--body <body>] [--raw <json>]",
-		"flags": "--org-login <org-login> --repo-name <repo-name> --project-number <project-number:number> --title <title> [--body <body>] [--raw <json>]"
-	},
-	{
 		"name": "user-secrets-get-status",
 		"description": "Check which providers have secrets configured for the current user. If a provider is configured, all of its required keys are present and non-empty. Use this before executing tools that depend on external APIs (e.g. GitHub) to decide whether to prompt the user for missing credentials.",
 		"usage": "user-secrets-get-status [--provider <provider>] [--raw <json>]",
@@ -44637,7 +44469,7 @@ const generatorTools = [
 ];
 const embeddedMetadata = {
 	"schemaVersion": 1,
-	"generatedAt": "2026-03-12T10:22:56.385Z",
+	"generatedAt": "2026-03-19T08:19:11.847Z",
 	"generator": {
 		"name": "backend",
 		"version": "1.0.0"
@@ -44693,15 +44525,6 @@ const commandSignatures = {
 	"direct-execute-canvas-action": "function direct_execute_canvas_action(componentKey: string, configuredProps: unknown);",
 	"direct-execute-web-search": "function direct_execute_web_search(query: string, limit?: number, sources?: \"web\" | \"news\" | \"images\");",
 	"direct-execute-web-scrape": "function direct_execute_web_scrape(url: string, formats?: \"markdown\" | \"html\" | \"rawHtml\" | \"links\" | \"images\" | \"screenshot\" | \"summary\" | \"json\", onlyMainContent?: boolean, timeout?: number, platform?: \"linkedin\" | \"instagram\" | \"reddit\" | \"general\" | \"auto\");",
-	"direct-execute-api-call": "function direct_execute_api_call(url: string, method?: string, headers?: unknown, body?: unknown, timeout?: number);",
-	"direct-execute-twitter-get-tweets": "function direct_execute_twitter_get_tweets(tweetIds?: string, tweetUrls?: string, query?: string, limit?: number);",
-	"direct-execute-twitter-get-user-id": "function direct_execute_twitter_get_user_id(screenName: string);",
-	"direct-execute-twitter-get-profiles": "function direct_execute_twitter_get_profiles(screenName: string);",
-	"direct-execute-twitter-get-multiple-profiles": "function direct_execute_twitter_get_multiple_profiles(userIds: string);",
-	"direct-execute-twitter-get-recent-posts": "function direct_execute_twitter_get_recent_posts(screenName: string);",
-	"direct-execute-aimfox": "function direct_execute_aimfox(key: string, configuredProps: unknown);",
-	"direct-execute-fireflies": "function direct_execute_fireflies(key: string, configuredProps: unknown);",
-	"direct-execute-github-add-item-to-project": "function direct_execute_github_add_item_to_project(orgLogin: string, repoName: string, projectNumber: number, title: string, body?: string);",
 	"user-secrets-get-status": "function user_secrets_get_status(provider?: string);",
 	"user-secrets-upsert": "function user_secrets_upsert(provider: string, secrets: unknown);"
 };
@@ -44825,7 +44648,7 @@ program.command("direct-execute-action").summary("direct-execute-action --compon
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_action(componentKey: \"value\", conf, ...)");
-program.command("direct-execute-canvas-action").summary("direct-execute-canvas-action --component-key <component-key> --configured-props <configured-props> [--raw <json>]").description("Execute a Canvas custom action directly (Fireflies, Aimfox, or future integrations). Uses the authenticated user's API key from Settings → Secrets for the corresponding app. Use this for action keys like fireflies-list-transcripts, fireflies-get-transcript, aimfox-list-accounts, aimfox-create-lead-note, etc. Discover keys via get_components with app=\"fireflies\" or app=\"aimfox\". Do not use for Pipedream actions — use direct_execute_action instead. configuredProps must match the action's required/optional fields from the component definition.").usage("--component-key <component-key> --configured-props <configured-props> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--component-key <component-key>", "Canvas action key (e.g. fireflies-list-transcripts)").requiredOption("--configured-props <configured-props>", "Action configuration matching the component schema").alias("direct_execute_canvas_action").action(async (cmdOpts) => {
+program.command("direct-execute-canvas-action").summary("direct-execute-canvas-action --component-key <component-key> --configured-props <configured-props> [--raw <json>]").description("Execute a Canvas action directly. Supports Fireflies, Aimfox, GitHub, Twitter, LinkedIn, and ClickUp. Uses the authenticated user's stored credentials where required (Fireflies, Aimfox, GitHub, ClickUp). Twitter and LinkedIn use system-level credentials. Discover available keys via get_components with app='fireflies', 'aimfox', 'github', 'twitter', 'linkedin', or 'clickup'. configuredProps must match the action's required/optional fields from the component definition. Do not use for Pipedream actions — use direct_execute_action instead.").usage("--component-key <component-key> --configured-props <configured-props> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--component-key <component-key>", "Canvas action key (e.g. fireflies-list-transcripts, twitter-get-tweets, clickup-create-task)").requiredOption("--configured-props <configured-props>", "Action configuration matching the component schema").alias("direct_execute_canvas_action").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
 	const serverName = embeddedName;
@@ -44881,165 +44704,6 @@ program.command("direct-execute-web-scrape").summary("direct-execute-web-scrape 
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_web_scrape(url: \"https://example.c, ...)");
-program.command("direct-execute-api-call").summary("direct-execute-api-call --url <url> [--method <method>] [--headers <headers>] [--body <body>] [--timeout <timeout:number>] [--raw <json>]").description("Execute a raw HTTP API call to any URL. Use this for REST API requests where no dedicated component exists. Supports any HTTP method (GET, POST, PUT, DELETE, etc.). Pass request headers as key-value pairs and body as any JSON-serializable value. Does not require authentication — include auth headers manually if the target API needs them.").usage("--url <url> [--method <method>] [--headers <headers>] [--body <body>] [--timeout <timeout:number>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--url <url>", "Set url.").option("--method <method>", "Set method.").option("--headers <headers>", "Set headers.").option("--body <body>", "Set body.").option("--timeout <timeout:number>", "Set timeout. (example: 1)", (value) => parseFloat(value)).alias("direct_execute_api_call").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.url !== undefined) args.url = cmdOpts.url;
-		if (cmdOpts.method !== undefined) args.method = cmdOpts.method;
-		if (cmdOpts.headers !== undefined) args.headers = cmdOpts.headers;
-		if (cmdOpts.body !== undefined) args.body = cmdOpts.body;
-		if (cmdOpts.timeout !== undefined) args.timeout = cmdOpts.timeout;
-		const call = proxy.directExecuteApiCall(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_api_call(url: \"https://example.com, ...)");
-program.command("direct-execute-twitter-get-tweets").summary("direct-execute-twitter-get-tweets [--tweet-ids <tweet-ids>] [--tweet-urls <tweet-urls>] [--query <query>] [--limit <limit:number>] [--raw <json>]").description("Fetch tweets by tweet IDs, tweet URLs, or a search query. Provide at least one of tweetIds, tweetUrls, or query. tweetIds and tweetUrls are comma-separated strings. Use limit to cap the number of results returned. Does not require authentication.").usage("[--tweet-ids <tweet-ids>] [--tweet-urls <tweet-urls>] [--query <query>] [--limit <limit:number>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--tweet-ids <tweet-ids>", "Set tweetIds. (example: example-id)").option("--tweet-urls <tweet-urls>", "Set tweetUrls.").option("--query <query>", "Set query.").option("--limit <limit:number>", "Set limit. (example: 1)", (value) => parseFloat(value)).alias("direct_execute_twitter_get_tweets").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.tweetIds !== undefined) args.tweetIds = cmdOpts.tweetIds;
-		if (cmdOpts.tweetUrls !== undefined) args.tweetUrls = cmdOpts.tweetUrls;
-		if (cmdOpts.query !== undefined) args.query = cmdOpts.query;
-		if (cmdOpts.limit !== undefined) args.limit = cmdOpts.limit;
-		const call = proxy.directExecuteTwitterGetTweets(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_twitter_get_tweets(tweetIds: \"exam, ...)");
-program.command("direct-execute-twitter-get-user-id").summary("direct-execute-twitter-get-user-id --screen-name <screen-name> [--raw <json>]").description("Resolve a Twitter screen name (handle) to its numeric user ID. Pass the screen name without the '@' prefix. Use the returned ID with direct_execute_twitter_get_multiple_profiles if needed. Does not require a connected account.").usage("--screen-name <screen-name> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--screen-name <screen-name>", "Set screenName.").alias("direct_execute_twitter_get_user_id").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.screenName !== undefined) args.screenName = cmdOpts.screenName;
-		const call = proxy.directExecuteTwitterGetUserId(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_twitter_get_user_id(screenName: \"value\")");
-program.command("direct-execute-twitter-get-profiles").summary("direct-execute-twitter-get-profiles --screen-name <screen-name> [--raw <json>]").description("Fetch a single Twitter user's profile by screen name. Returns profile metadata including name, bio, follower count, etc. Pass the screen name without the '@' prefix. For multiple profiles by user ID, use direct_execute_twitter_get_multiple_profiles instead. Does not require a connected account.").usage("--screen-name <screen-name> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--screen-name <screen-name>", "Set screenName.").alias("direct_execute_twitter_get_profiles").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.screenName !== undefined) args.screenName = cmdOpts.screenName;
-		const call = proxy.directExecuteTwitterGetProfiles(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_twitter_get_profiles(screenName: \", ...)");
-program.command("direct-execute-twitter-get-multiple-profiles").summary("direct-execute-twitter-get-multiple-profiles --user-ids <user-ids> [--raw <json>]").description("Fetch multiple Twitter profiles by their numeric user IDs. Pass userIds as a comma-separated string of IDs. Use direct_execute_twitter_get_user_id first to resolve screen names to IDs if needed. Does not require a connected account.").usage("--user-ids <user-ids> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--user-ids <user-ids>", "Set userIds. (example: example-id)").alias("direct_execute_twitter_get_multiple_profiles").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.userIds !== undefined) args.userIds = cmdOpts.userIds;
-		const call = proxy.directExecuteTwitterGetMultipleProfiles(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_twitter_get_multiple_profiles(user, ...)");
-program.command("direct-execute-twitter-get-recent-posts").summary("direct-execute-twitter-get-recent-posts --screen-name <screen-name> [--raw <json>]").description("Fetch recent posts/tweets from a Twitter user by screen name. Pass the screen name without the '@' prefix. Returns the user's latest tweets in reverse chronological order. Does not require a connected account.").usage("--screen-name <screen-name> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--screen-name <screen-name>", "Set screenName.").alias("direct_execute_twitter_get_recent_posts").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.screenName !== undefined) args.screenName = cmdOpts.screenName;
-		const call = proxy.directExecuteTwitterGetRecentPosts(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_twitter_get_recent_posts(screenNam, ...)");
-program.command("direct-execute-aimfox").summary("direct-execute-aimfox --key <key> --configured-props <configured-props> [--raw <json>]").description("Execute an Aimfox Canvas action directly (e.g. aimfox-list-accounts, aimfox-list-templates, aimfox-create-lead-note). Uses the authenticated user's Aimfox API key from Settings → Secrets → Aimfox. key must be a valid Aimfox Canvas action key from the Aimfox component registry (discoverable via get_components with app=\"aimfox\"); configuredProps must match that action's required/optional fields. Do not invent keys.").usage("--key <key> --configured-props <configured-props> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--key <key>", "Aimfox Canvas action key").requiredOption("--configured-props <configured-props>", "Action configuration").alias("direct_execute_aimfox").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.key !== undefined) args.key = cmdOpts.key;
-		if (cmdOpts.configuredProps !== undefined) {
-      if (typeof cmdOpts.configuredProps === "string") {
-        try { args.configuredProps = JSON.parse(cmdOpts.configuredProps); }
-        catch { args.configuredProps = cmdOpts.configuredProps; }
-      } else { args.configuredProps = cmdOpts.configuredProps; }
-    }const call = proxy.directExecuteAimfox(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_aimfox(key: \"value\", configuredPro, ...)");
-program.command("direct-execute-fireflies").summary("direct-execute-fireflies --key <key> --configured-props <configured-props> [--raw <json>]").description("Execute a Fireflies Canvas action directly (e.g. fireflies-list-transcripts, fireflies-get-transcript, fireflies-list-bites). Uses the authenticated user's Fireflies API key from Settings → Secrets → Fireflies. key must be a valid Fireflies Canvas action key from the Fireflies component registry (discoverable via get_components with app=\"fireflies\"); configuredProps must match that action's required/optional fields. Do not invent keys.").usage("--key <key> --configured-props <configured-props> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--key <key>", "Fireflies Canvas action key").requiredOption("--configured-props <configured-props>", "Action configuration").alias("direct_execute_fireflies").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.key !== undefined) args.key = cmdOpts.key;
-		if (cmdOpts.configuredProps !== undefined) {
-      if (typeof cmdOpts.configuredProps === "string") {
-        try { args.configuredProps = JSON.parse(cmdOpts.configuredProps); }
-        catch { args.configuredProps = cmdOpts.configuredProps; }
-      } else { args.configuredProps = cmdOpts.configuredProps; }
-    }const call = proxy.directExecuteFireflies(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_fireflies(key: \"value\", configured, ...)");
-program.command("direct-execute-github-add-item-to-project").summary("direct-execute-github-add-item-to-project --org-login <org-login> --repo-name <repo-name> --project-number <project-number:number> --title <title> [--body <body>] [--raw <json>]").description("Create a new GitHub issue and add it to a Projects V2 board for the authenticated user. Uses the user's stored GitHub Personal Access Token (PAT) from the Canvas secrets registry — the PAT is NOT passed in tool input. You MUST ensure the user has configured their GitHub secrets (provider \"github\", key \"pat\") before calling this tool. Inputs accept human-readable values: org/owner login, repository name, project number, status/column name, assignee usernames, and label names. All IDs are resolved at execution time via the GitHub GraphQL API.").usage("--org-login <org-login> --repo-name <repo-name> --project-number <project-number:number> --title <title> [--body <body>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--org-login <org-login>", "Set orgLogin.").requiredOption("--repo-name <repo-name>", "Set repoName.").requiredOption("--project-number <project-number:number>", "Set projectNumber. (example: 1)", (value) => parseFloat(value)).requiredOption("--title <title>", "Set title.").option("--body <body>", "Set body.").option("--status-name <status-name>", "Set statusName.").option("--assignee-logins <assignee-logins:value1,value2>", "Set assigneeLogins. (example: value1,value2)", (value) => value.split(",").map((v) => v.trim())).option("--label-names <label-names:value1,value2>", "Set labelNames. (example: value1,value2)", (value) => value.split(",").map((v) => v.trim())).alias("direct_execute_github_add_item_to_project").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.orgLogin !== undefined) args.orgLogin = cmdOpts.orgLogin;
-		if (cmdOpts.repoName !== undefined) args.repoName = cmdOpts.repoName;
-		if (cmdOpts.projectNumber !== undefined) args.projectNumber = cmdOpts.projectNumber;
-		if (cmdOpts.title !== undefined) args.title = cmdOpts.title;
-		if (cmdOpts.body !== undefined) args.body = cmdOpts.body;
-		if (cmdOpts.statusName !== undefined) args.statusName = cmdOpts.statusName;
-		if (cmdOpts.assigneeLogins !== undefined) args.assigneeLogins = cmdOpts.assigneeLogins;
-		if (cmdOpts.labelNames !== undefined) args.labelNames = cmdOpts.labelNames;
-		const call = proxy.directExecuteGithubAddItemToProject(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_github_add_item_to_project(orgLogi, ...)").addHelpText("afterAll", () => "\n" + "// optional (3): statusName, assigneeLogins, labelNames" + "\n");
 program.command("user-secrets-get-status").summary("user-secrets-get-status [--provider <provider>] [--raw <json>]").description("Check which providers have secrets configured for the current user. If a provider is configured, all of its required keys are present and non-empty. Use this before executing tools that depend on external APIs (e.g. GitHub) to decide whether to prompt the user for missing credentials.").usage("[--provider <provider>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--provider <provider>", "Optional provider ID (e.g. 'github'). If omitted, returns status for all supported providers. (example: example-id)").alias("user_secrets_get_status").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();

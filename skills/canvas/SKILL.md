@@ -165,4 +165,4 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 - 401/403 in output: tell user the API key may be invalid, ask an admin to check the Canvas integration provider config in the dashboard
 - `MISSING_CREDENTIALS` error: use `user_secrets_get_status` to confirm, then guide user to connect the app via Settings → Secrets
 - `INVALID_KEY` error: the action key is not recognized — use component discovery to find valid keys
-- Missing connected account (Pipedream actions): guide user to set up accounts in Sketch dashboard
+- Missing connected account (Pipedream actions): guide user to set up accounts in Canvas (app.canvasx.ai) first
