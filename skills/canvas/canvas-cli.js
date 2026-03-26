@@ -23883,11 +23883,11 @@ const AUTHORIZATION_CODE_CHALLENGE_METHOD = "S256";
 */
 function selectClientAuthMethod(clientInformation, supportedMethods) {
 	const hasClientSecret = clientInformation.client_secret !== undefined;
-	if (supportedMethods.length === 0) {
-		return hasClientSecret ? "client_secret_post" : "none";
-	}
-	if ("token_endpoint_auth_method" in clientInformation && clientInformation.token_endpoint_auth_method && isClientAuthMethod(clientInformation.token_endpoint_auth_method) && supportedMethods.includes(clientInformation.token_endpoint_auth_method)) {
+	if ("token_endpoint_auth_method" in clientInformation && clientInformation.token_endpoint_auth_method && isClientAuthMethod(clientInformation.token_endpoint_auth_method) && (supportedMethods.length === 0 || supportedMethods.includes(clientInformation.token_endpoint_auth_method))) {
 		return clientInformation.token_endpoint_auth_method;
+	}
+	if (supportedMethods.length === 0) {
+		return hasClientSecret ? "client_secret_basic" : "none";
 	}
 	if (hasClientSecret && supportedMethods.includes("client_secret_basic")) {
 		return "client_secret_basic";
@@ -24040,6 +24040,7 @@ async function authInternal(provider, { serverUrl, authorizationCode, scope, res
 		});
 	}
 	const resource = await selectResourceURL(serverUrl, provider, resourceMetadata);
+	const resolvedScope = scope || resourceMetadata?.scopes_supported?.join(" ") || provider.clientMetadata.scope;
 	let clientInformation = await Promise.resolve(provider.clientInformation());
 	if (!clientInformation) {
 		if (authorizationCode !== undefined) {
@@ -24061,6 +24062,7 @@ async function authInternal(provider, { serverUrl, authorizationCode, scope, res
 			const fullInformation = await registerClient(authorizationServerUrl, {
 				metadata,
 				clientMetadata: provider.clientMetadata,
+				scope: resolvedScope,
 				fetchFn
 			});
 			await provider.saveClientInformation(fullInformation);
@@ -24103,7 +24105,7 @@ async function authInternal(provider, { serverUrl, authorizationCode, scope, res
 		clientInformation,
 		state,
 		redirectUrl: provider.redirectUrl,
-		scope: scope || resourceMetadata?.scopes_supported?.join(" ") || provider.clientMetadata.scope,
+		scope: resolvedScope,
 		resource
 	});
 	await provider.saveCodeVerifier(codeVerifier);
@@ -24644,8 +24646,12 @@ async function fetchToken(provider, authorizationServerUrl, { metadata, resource
 }
 /**
 * Performs OAuth 2.0 Dynamic Client Registration according to RFC 7591.
+*
+* If `scope` is provided, it overrides `clientMetadata.scope` in the registration
+* request body. This allows callers to apply the Scope Selection Strategy (SEP-835)
+* consistently across both DCR and the subsequent authorization request.
 */
-async function registerClient(authorizationServerUrl, { metadata, clientMetadata, fetchFn }) {
+async function registerClient(authorizationServerUrl, { metadata, clientMetadata, scope, fetchFn }) {
 	let registrationUrl;
 	if (metadata) {
 		if (!metadata.registration_endpoint) {
@@ -24658,7 +24664,10 @@ async function registerClient(authorizationServerUrl, { metadata, clientMetadata
 	const response = await (fetchFn ?? fetch)(registrationUrl, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(clientMetadata)
+		body: JSON.stringify({
+			...clientMetadata,
+			...scope !== undefined ? { scope } : {}
+		})
 	});
 	if (!response.ok) {
 		throw await parseErrorResponse(response);
@@ -33539,6 +33548,10 @@ var Protocol = class {
 		this._progressHandlers.clear();
 		this._taskProgressTokens.clear();
 		this._pendingDebouncedNotifications.clear();
+		for (const info of this._timeoutInfo.values()) {
+			clearTimeout(info.timeoutId);
+		}
+		this._timeoutInfo.clear();
 		for (const controller of this._requestHandlerAbortControllers.values()) {
 			controller.abort();
 		}
@@ -33671,7 +33684,9 @@ var Protocol = class {
 				await capturedTransport?.send(errorResponse);
 			}
 		}).catch((error$47) => this._onerror(new Error(`Failed to send response: ${error$47}`))).finally(() => {
-			this._requestHandlerAbortControllers.delete(request.id);
+			if (this._requestHandlerAbortControllers.get(request.id) === abortController) {
+				this._requestHandlerAbortControllers.delete(request.id);
+			}
 		});
 	}
 	_onprogress(notification) {
@@ -44364,6 +44379,38 @@ const embeddedSchemas = {
 		"required": ["url"],
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	},
+	"fetch_remote_options": {
+		"type": "object",
+		"properties": {
+			"componentKey": {
+				"type": "string",
+				"description": "The component key (e.g. slack-send-message)"
+			},
+			"fieldName": {
+				"type": "string",
+				"description": "The field name to fetch options for (e.g. channel)"
+			},
+			"accountId": {
+				"type": "string",
+				"description": "The auth provision ID for the connected account"
+			},
+			"currentConfiguration": {
+				"type": "object",
+				"propertyNames": { "type": "string" },
+				"additionalProperties": {}
+			},
+			"searchQuery": {
+				"description": "Optional search query for fuzzy matching",
+				"type": "string"
+			}
+		},
+		"required": [
+			"componentKey",
+			"fieldName",
+			"accountId"
+		],
+		"$schema": "http://json-schema.org/draft-07/schema#"
+	},
 	"user_secrets_get_status": {
 		"type": "object",
 		"properties": { "provider": {
@@ -44455,6 +44502,12 @@ const generatorTools = [
 		"flags": "--url <url> [--formats <formats:markdown|html|rawHtml|links|images|screenshot|summary|json>] [--only-main-content <only-main-content:true|false>] [--timeout <timeout:number>] [--platform <platform:linkedin|instagram|reddit|general|auto>] [--raw <json>]"
 	},
 	{
+		"name": "fetch-remote-options",
+		"description": "Fetch remote options for a dropdown field from Pipedream. Use this to get dynamic options for fields that have remoteOptions enabled, such as channels, workspaces, or other dependent dropdowns. The accountId must be a connected account for the target app. Optionally provide a searchQuery to fuzzy search the options and return the best match instead of the full options list. NOTE: Currently only fetches page 0 (first page of results).",
+		"usage": "fetch-remote-options --component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration>] [--search-query <search-query>] [--raw <json>]",
+		"flags": "--component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration>] [--search-query <search-query>] [--raw <json>]"
+	},
+	{
 		"name": "user-secrets-get-status",
 		"description": "Check which providers have secrets configured for the current user. If a provider is configured, all of its required keys are present and non-empty. Use this before executing tools that depend on external APIs (e.g. GitHub) to decide whether to prompt the user for missing credentials.",
 		"usage": "user-secrets-get-status [--provider <provider>] [--raw <json>]",
@@ -44469,7 +44522,7 @@ const generatorTools = [
 ];
 const embeddedMetadata = {
 	"schemaVersion": 1,
-	"generatedAt": "2026-03-19T08:19:11.847Z",
+	"generatedAt": "2026-03-26T07:18:46.160Z",
 	"generator": {
 		"name": "backend",
 		"version": "1.0.0"
@@ -44525,6 +44578,7 @@ const commandSignatures = {
 	"direct-execute-canvas-action": "function direct_execute_canvas_action(componentKey: string, configuredProps: unknown);",
 	"direct-execute-web-search": "function direct_execute_web_search(query: string, limit?: number, sources?: \"web\" | \"news\" | \"images\");",
 	"direct-execute-web-scrape": "function direct_execute_web_scrape(url: string, formats?: \"markdown\" | \"html\" | \"rawHtml\" | \"links\" | \"images\" | \"screenshot\" | \"summary\" | \"json\", onlyMainContent?: boolean, timeout?: number, platform?: \"linkedin\" | \"instagram\" | \"reddit\" | \"general\" | \"auto\");",
+	"fetch-remote-options": "function fetch_remote_options(componentKey: string, fieldName: string, accountId: string, currentConfiguration?: unknown, searchQuery?: string);",
 	"user-secrets-get-status": "function user_secrets_get_status(provider?: string);",
 	"user-secrets-upsert": "function user_secrets_upsert(provider: string, secrets: unknown);"
 };
@@ -44704,6 +44758,25 @@ program.command("direct-execute-web-scrape").summary("direct-execute-web-scrape 
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_web_scrape(url: \"https://example.c, ...)");
+program.command("fetch-remote-options").summary("fetch-remote-options --component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration>] [--search-query <search-query>] [--raw <json>]").description("Fetch remote options for a dropdown field from Pipedream. Use this to get dynamic options for fields that have remoteOptions enabled, such as channels, workspaces, or other dependent dropdowns. The accountId must be a connected account for the target app. Optionally provide a searchQuery to fuzzy search the options and return the best match instead of the full options list. NOTE: Currently only fetches page 0 (first page of results).").usage("--component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration>] [--search-query <search-query>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").requiredOption("--component-key <component-key>", "The component key (e.g. slack-send-message)").requiredOption("--field-name <field-name>", "The field name to fetch options for (e.g. channel)").requiredOption("--account-id <account-id>", "The auth provision ID for the connected account (example: example-id)").option("--current-configuration <current-configuration>", "Set currentConfiguration.").option("--search-query <search-query>", "Optional search query for fuzzy matching").alias("fetch_remote_options").action(async (cmdOpts) => {
+	const globalOptions = program.opts();
+	const runtime = await ensureRuntime();
+	const serverName = embeddedName;
+	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
+	try {
+		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
+		if (cmdOpts.componentKey !== undefined) args.componentKey = cmdOpts.componentKey;
+		if (cmdOpts.fieldName !== undefined) args.fieldName = cmdOpts.fieldName;
+		if (cmdOpts.accountId !== undefined) args.accountId = cmdOpts.accountId;
+		if (cmdOpts.currentConfiguration !== undefined) args.currentConfiguration = cmdOpts.currentConfiguration;
+		if (cmdOpts.searchQuery !== undefined) args.searchQuery = cmdOpts.searchQuery;
+		const call = proxy.fetchRemoteOptions(args);
+		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
+		printResult(result, globalOptions.output ?? "text");
+	} finally {
+		await runtime.close(serverName).catch(() => {});
+	}
+}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.fetch_remote_options(componentKey: \"value\", field, ...)");
 program.command("user-secrets-get-status").summary("user-secrets-get-status [--provider <provider>] [--raw <json>]").description("Check which providers have secrets configured for the current user. If a provider is configured, all of its required keys are present and non-empty. Use this before executing tools that depend on external APIs (e.g. GitHub) to decide whether to prompt the user for missing credentials.").usage("[--provider <provider>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--provider <provider>", "Optional provider ID (e.g. 'github'). If omitted, returns status for all supported providers. (example: example-id)").alias("user_secrets_get_status").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
