@@ -38,6 +38,22 @@ Always use `--output json` for structured results you can parse and present clea
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js search-apps --queries "slack,gmail,notion" --output json
 ```
 
+The response includes an `authStatus` field per app indicating whether the user has connected accounts or configured secrets. This eliminates the need for separate `get-accounts` or `user-secrets-get-status` calls in most flows.
+
+**authStatus fields:**
+
+| Field         | Type                                          | Description                                                          |
+| ------------- | --------------------------------------------- | -------------------------------------------------------------------- |
+| `type`        | `"none"` \| `"oauth"` \| `"secrets"`          | Auth model for this app                                              |
+| `isReady`     | `boolean`                                     | Whether the user can execute actions for this app right now          |
+| `accounts`    | `Array<{id, name, healthy, authProvisionId}>` | (OAuth only) Connected accounts with `authProvisionId` for execution |
+| `provider`    | `string`                                      | (Secrets only) Provider ID (e.g. `github`, `google`)                 |
+| `missingKeys` | `string[]`                                    | (Secrets only) Required keys not yet configured                      |
+
+- `type: "none"` — Twitter, LinkedIn, System — no user setup needed, always `isReady: true`
+- `type: "oauth"` — Pipedream apps (Slack, Gmail, etc.) — `isReady` when at least one healthy account exists; use `accounts[0].authProvisionId` in `configuredProps`
+- `type: "secrets"` — Canvas apps (GitHub, Aimfox, Fireflies, ClickUp, Google) — `isReady` when all required keys are configured; if `missingKeys` is non-empty, guide user to Settings → Secrets
+
 ### Component Discovery
 
 **search-components**
@@ -68,6 +84,8 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 
 **get-accounts**
 
+> **Note:** In most flows you do NOT need this — `search-apps` already returns `authStatus` with connected accounts and `authProvisionId` values. Use `get-accounts` only when you need to list accounts without a prior `search-apps` call, or to refresh account state mid-flow.
+
 ```bash
 CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-accounts --app slack --output json
 ```
@@ -76,7 +94,9 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 
 **user-secrets-get-status**
 
-Check whether a user has configured secrets for one or more providers. Use this before executing Canvas actions that require per-user credentials (e.g. GitHub, Fireflies, Aimfox, ClickUp). If secrets are missing, guide the user to Settings → Secrets.
+> **Note:** In most flows you do NOT need this — `search-apps` already returns `authStatus` with `isReady` and `missingKeys` for Canvas apps. Use `user-secrets-get-status` only when you need to check secrets without a prior `search-apps` call, or for detailed provider diagnostics.
+
+Check whether a user has configured secrets for one or more providers. If secrets are missing, guide the user to Settings → Secrets.
 
 ```bash
 # Check a specific provider
@@ -121,61 +141,45 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 | `--provider` | string                 | Yes      | Provider ID (e.g. `github`). Must be a supported provider.        |
 | `--secrets`  | Record<string, string> | Yes      | Key/value pairs. Must include all required keys for the provider. |
 
-### Pipedream Action Execution
+### Action Execution
 
 **direct-execute-action**
 
-For Pipedream-hosted actions (e.g. Slack, Gmail, Notion). Before calling:
+All actions — Pipedream and Canvas — are executed through this single command. Canvas action keys (e.g. `fireflies-*`, `github-*`, `twitter-*`) are automatically routed to the Canvas executor.
 
-1. Use `get-component-definition` to get the input schema
-2. Use `get-accounts` to verify the user has a connected account
-3. Pass auth as `{ "app_slug": { "authProvisionId": "<token>" } }`
+**Before calling:**
 
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key slack_slack-send-message --configured-props '{"channel":"#general","text":"Hello!","slack":{"authProvisionId":"apn_xxxx"}}' --output json
-```
+1. Use `search-apps` to find the app and check `authStatus.isReady`
+2. Use `search-components` or `get-app-components` to find the action key
+3. Use `get-component-definition` to get the input schema
+4. Execute via `direct-execute-action`
 
-### Canvas Action Execution
+**How to pass auth based on `authStatus.type`:**
 
-**direct-execute-canvas-action**
-
-Unified executor for Canvas custom integrations. Supports: **Fireflies, Aimfox, GitHub, ClickUp, Twitter, LinkedIn**. Each app resolves credentials automatically — per-user secrets for Fireflies/Aimfox/GitHub/ClickUp, system-level credentials for Twitter/LinkedIn.
-
-Before calling:
-
-1. Use `search-components` or `get-app-components` to discover available action keys for the app
-2. Use `get-component-definition` to get the input schema for the action
-3. Pass `--component-key` with the action key and `--configured-props` matching the schema
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-canvas-action --component-key <action-key> --configured-props '{"..."}' --output json
-```
-
-**Credential models by app:**
-
-| App       | Credentials                             | User setup required? |
-| --------- | --------------------------------------- | -------------------- |
-| Fireflies | Per-user API key via Settings → Secrets | Yes                  |
-| Aimfox    | Per-user API key via Settings → Secrets | Yes                  |
-| GitHub    | Per-user PAT via Settings → Secrets     | Yes                  |
-| ClickUp   | OAuth token via Settings → Secrets      | Yes                  |
-| Twitter   | System-level (env var)                  | No                   |
-| LinkedIn  | System-level (env var)                  | No                   |
-
-For apps requiring per-user secrets, use `user_secrets_get_status` to check if the user has configured their credentials before attempting execution. If secrets are missing, guide the user to Settings → Secrets to connect the app.
+| `authStatus.type` | What to do                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `"oauth"`         | Include `{ "app_slug": { "authProvisionId": "<id>" } }` in `configuredProps`. If `authStatus.accounts` has one entry, use it directly. If multiple exist, ask the user which account to use (show them the `name` field from each account) |
+| `"secrets"`       | Nothing — credentials are resolved automatically from the user's stored secrets. If `authStatus.isReady` is `false`, guide user to Settings → Secrets first                                                                                |
+| `"none"`          | Nothing — system-level credentials are used automatically                                                                                                                                                                                  |
 
 **Examples:**
 
-Twitter — search tweets (system credentials, no user setup):
+Slack — send message (OAuth, needs `authProvisionId`):
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-canvas-action --component-key twitter-get-tweets --configured-props '{"query":"AI agents","limit":5}' --output json
+CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key slack_slack-send-message --configured-props '{"channel":"C01234","text":"Hello!","slack":{"authProvisionId":"apn_xxxx"}}' --output json
 ```
 
-Fireflies — list transcripts (per-user secret required):
+Twitter — search tweets (system credentials, nothing extra needed):
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-canvas-action --component-key fireflies-list-transcripts --configured-props '{}' --output json
+CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key twitter-get-tweets --configured-props '{"query":"AI agents","limit":5}' --output json
+```
+
+Fireflies — list transcripts (user secrets, nothing extra needed):
+
+```bash
+CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key fireflies-list-transcripts --configured-props '{}' --output json
 ```
 
 ### Web Tools (no auth required)
@@ -259,24 +263,24 @@ CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/
 ### Pipedream action (e.g. Slack)
 
 1. User: "Send a message to #general on Slack"
-2. Search apps: `search-apps --queries "slack"`
+2. Search apps: `search-apps --queries "slack"` → check `authStatus.isReady` and get `authProvisionId` from `authStatus.accounts[0]` (e.g. `apn_GXh0e4v`)
 3. Get components: `get-app-components --app slack --component-type action`
 4. Get definition: `get-component-definition --key slack_slack-send-message`
-5. Check accounts: `get-accounts --app slack`
-6. Resolve channel: `fetch-remote-options --component-key slack-send-message --field-name channel --account-id apn_xxxx --search-query "general"` → returns the matching channel ID
-7. Execute: `direct-execute-action --component-key slack_slack-send-message --configured-props '{...}'`
+5. Resolve channel: `fetch-remote-options --component-key slack-send-message --field-name channel --account-id <authProvisionId from step 2> --search-query "general"` → returns the matching channel ID
+6. Execute: `direct-execute-action --component-key slack_slack-send-message --configured-props '{...}'`
 
 ### Canvas action (e.g. Fireflies)
 
 1. User: "Get my recent Fireflies transcripts"
-2. Search components: `search-components --raw '{"queries": [{"app": "fireflies", "query": "list transcripts"}]}'`
-3. Get definition: `get-component-definition --key fireflies-list-transcripts`
-4. Execute: `direct-execute-canvas-action --component-key fireflies-list-transcripts --configured-props '{}'`
+2. Search apps: `search-apps --queries "fireflies"` → check `authStatus.isReady` (if false, guide user to Settings → Secrets)
+3. Search components: `search-components --raw '{"queries": [{"app": "fireflies", "query": "list transcripts"}]}'`
+4. Get definition: `get-component-definition --key fireflies-list-transcripts`
+5. Execute: `direct-execute-action --component-key fireflies-list-transcripts --configured-props '{}'`
 
 ## Error Handling
 
 - Non-zero exit code: show the error message to the user
 - 401/403 in output: tell user the API key may be invalid, ask an admin to check the Canvas integration provider config in the dashboard
-- `MISSING_CREDENTIALS` error: use `user_secrets_get_status` to confirm, then guide user to connect the app via Settings → Secrets
+- `MISSING_CREDENTIALS` error: check `authStatus` from `search-apps` (or use `user-secrets-get-status` to confirm), then guide user to connect the app via Settings → Secrets
 - `INVALID_KEY` error: the action key is not recognized — use component discovery to find valid keys
 - Missing connected account (Pipedream actions): guide user to set up accounts in Sketch dashboard first.
