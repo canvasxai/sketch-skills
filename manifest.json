@@ -4,7 +4,7 @@
     "canvas": {
       "name": "Canvas",
       "description": "App integrations, automation, web search/scrape, API calls via Canvas AI",
-      "version": "2.0.0",
+      "version": "1.0.0",
       "path": "skills/canvas"
     },
     "clickup": {

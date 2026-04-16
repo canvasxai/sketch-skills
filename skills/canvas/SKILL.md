@@ -117,6 +117,7 @@ $CANVAS_CLI direct-execute-web-scrape --url "https://example.com" --formats mark
 **Web scraping** is for public, unauthenticated web pages only — articles, landing pages, documentation, public blogs, and social platforms (LinkedIn, X/Twitter, Reddit). If the URL requires a login or belongs to a productivity/workspace app, do NOT use the scraper — use that app's native action via `direct-execute-action` instead.
 
 The following will NOT work with `direct-execute-web-scrape`:
+
 - Google Sheets, Google Docs, Google Drive links
 - Airtable bases and views
 - Notion pages and databases
