@@ -33,57 +33,53 @@ Similarly, resolve `space_id`, `list_id`, `folder_id`, and `user_id` via `fetch-
 - Cache resolved IDs (workspace, space, list, user) within the conversation to avoid redundant lookups.
 - Use `--search-query "<name>"` with `fetch-remote-options` to narrow results when looking up a specific user, space, or list by name.
 - **If results are ambiguous** (multiple matches returned), stop and present the options to the user — ask them to confirm which one they mean before proceeding. Never guess or pick the first result.
+- Prefer bounding results via action parameters (`page`, `archived`, `limit`) instead of shell post-processing. If you need shell post-processing (`jq`, `grep`, `wc`), wrap the CLI invocation in `sh -c` first:
+  ```bash
+  sh -c '"$CANVAS_CLI" <subcommand> [flags] --output json' | jq ...
+  ```
 
 ### DON'T
 
 - **Never** pass `"accountId"` in `--configured-props` — auth is injected automatically by the CLI.
-- **Never** pipe `$CANVAS_CLI` output to shell commands (`| head`, `| tail`, `| grep`, `| cat`, `| awk`, `| sed`, etc.). The runtime blocks piping as a credential-exfiltration defense. Bound response size using the action's own input parameters instead.
+- **Never** pipe `$CANVAS_CLI ...` directly — the SDK Bash tool returns `(eval):1: permission denied:` when a command from an env var appears on the left side of a pipe. Always use the `sh -c` wrapper form shown above.
 - **Never** hardcode IDs — always resolve them via `fetch-remote-options` on first use.
-
-### Handling Large Responses
-
-Use the action's own parameters to bound response size:
-
-- `page` — paginate results
-- `archived: false` — exclude archived tasks
-- `limit` / `maxResults` — cap result count
 
 ## Available Actions
 
 ### Tasks
 
-| Key                          | Description                                                      |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `clickup-create-task`        | Create a new task in a ClickUp list                              |
-| `clickup-get-task`           | Retrieve a single task by its ID                                 |
-| `clickup-update-task`        | Update an existing task's properties                             |
-| `clickup-delete-task`        | Delete a task from the workspace                                 |
-| `clickup-get-tasks`          | Retrieve all tasks from a list                                   |
-| `clickup-get-tasks-by-user`  | Get tasks assigned to a specific user                            |
-| `clickup-get-tasks-in-space` | Get all tasks in a space (across all folders and lists)           |
-| `clickup-get-users`          | Get team members/users from the workspace                        |
+| Key                          | Description                                                    |
+| ---------------------------- | -------------------------------------------------------------- |
+| `clickup-create-task`        | Create a new task in a ClickUp list                            |
+| `clickup-get-task`           | Retrieve a single task by its ID                               |
+| `clickup-update-task`        | Update an existing task's properties                           |
+| `clickup-delete-task`        | Delete a task from the workspace                               |
+| `clickup-get-tasks`          | Retrieve all tasks from a list                                 |
+| `clickup-get-tasks-by-user`  | Get tasks assigned to a specific user                          |
+| `clickup-get-tasks-in-space` | Get all tasks in a space (across all folders and lists)         |
+| `clickup-get-users`          | Get team members/users from the workspace                      |
 
 ### Comments
 
-| Key                              | Description                                                  |
-| -------------------------------- | ------------------------------------------------------------ |
-| `clickup-create-task-comment`    | Add a comment to a task (optionally notify or tag users)     |
-| `clickup-get-task-comments`      | Retrieve all comments from a task                            |
-| `clickup-create-list-comment`    | Add a comment to a list                                      |
-| `clickup-get-list-comments`      | Retrieve all comments from a list                            |
-| `clickup-update-comment`         | Update a comment's text or mark it resolved/unresolved       |
-| `clickup-delete-comment`         | Delete a comment from a task or list (irreversible)          |
+| Key                           | Description                                                |
+| ----------------------------- | ---------------------------------------------------------- |
+| `clickup-create-task-comment` | Add a comment to a task (optionally notify or tag users)   |
+| `clickup-get-task-comments`   | Retrieve all comments from a task                          |
+| `clickup-create-list-comment` | Add a comment to a list                                    |
+| `clickup-get-list-comments`   | Retrieve all comments from a list                          |
+| `clickup-update-comment`      | Update a comment's text or mark it resolved/unresolved     |
+| `clickup-delete-comment`      | Delete a comment from a task or list (irreversible)        |
 
 ### Docs
 
-| Key                       | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `clickup-search-docs`     | Search for docs by name or keyword                     |
-| `clickup-create-doc`      | Create a new doc (optionally with an initial page)     |
-| `clickup-get-doc`         | Retrieve a doc's metadata including its page IDs       |
-| `clickup-get-doc-page`    | Retrieve the content of a single page from a doc       |
-| `clickup-create-doc-page` | Create a new page inside a doc (optionally nested)     |
-| `clickup-edit-doc-page`   | Update a page's name and/or content                    |
+| Key                       | Description                                          |
+| ------------------------- | ---------------------------------------------------- |
+| `clickup-search-docs`     | Search for docs by name or keyword                   |
+| `clickup-create-doc`      | Create a new doc (optionally with an initial page)   |
+| `clickup-get-doc`         | Retrieve a doc's metadata including its page IDs     |
+| `clickup-get-doc-page`    | Retrieve the content of a single page from a doc     |
+| `clickup-create-doc-page` | Create a new page inside a doc (optionally nested)   |
+| `clickup-edit-doc-page`   | Update a page's name and/or content                  |
 
 ## Common Workflows
 
