@@ -7,6 +7,12 @@
       "version": "1.0.0",
       "path": "skills/canvas"
     },
+    "clickup": {
+      "name": "ClickUp",
+      "description": "Task and project management — create, update, and track tasks, comments, and docs in ClickUp",
+      "version": "1.0.0",
+      "path": "skills/clickup"
+    },
     "icp-discovery": {
       "name": "ICP Discovery",
       "description": "Ideal customer profile discovery and market validation",
