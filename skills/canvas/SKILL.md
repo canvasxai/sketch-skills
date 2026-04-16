@@ -1,286 +1,136 @@
 ---
 name: canvas
-description: Interact with Canvas AI -- search apps, discover components, execute actions, fetch remote options for dynamic fields, web search, web scrape, and automation via the Pipedream platform and Canvas custom integrations. Use when the user asks about Canvas, app integrations, automation, Pipedream actions, or wants to search/scrape the web.
+description: Connect to 3000+ third-party apps (Slack, Gmail, Google Calendar, Notion, GitHub, Linear, Asana, ClickUp, Airtable, Trello, HubSpot, Salesforce, Fireflies, Aimfox, Twitter, LinkedIn, and many more) to read data, take actions, and run automations on the user's behalf. Also provides web search and web scraping. Use this skill any time the user asks to do something involving an external app, service, or website — sending messages, fetching data, creating tickets, scheduling events, searching the web, etc. The user will not mention "Canvas" by name; they will just describe what they want.
 provider-type: canvas
 ---
 
 # Canvas
 
-Canvas is an automation and integration platform. This skill provides access to app discovery, component lookup, action execution (Pipedream and Canvas custom), and web search/scrape.
+Gateway to 3000+ third-party apps — Slack, Gmail, Google Calendar, Notion, GitHub, Linear, ClickUp, Fireflies, Twitter, LinkedIn, and more. Also web search and scraping.
 
-## Authentication
+**The user does not know Canvas exists.** They'll say "send a message to my team", "what's on my calendar", "create a ticket", "summarize my meetings", "find me articles about X". Recognize these and use this skill. Never mention Canvas by name to the user.
 
-Before any Canvas operation, call the `getProviderConfig` tool to get the integration provider credentials.
+## CLI contract
 
-If it returns `configured: false`, tell the user that Canvas is not configured and an admin needs to set up the Canvas integration provider in the Sketch dashboard.
-
-The user's email is available from your context (system prompt in DMs, or the conversation messages in group chats). Use it as CANVAS_USER_EMAIL.
-
-NEVER echo or log the API key value in responses.
-
-## CLI Usage
-
-All Canvas operations go through the CLI. Invocation pattern:
+All operations go through `$CANVAS_CLI` (a wrapper that injects credentials). Always pass `--output json`.
 
 ```bash
-CANVAS_API_KEY_MCP=<apiKey from getProviderConfig> CANVAS_USER_EMAIL=<user email> node ~/.claude/skills/canvas/canvas-cli.js <subcommand> [flags] --output json
+$CANVAS_CLI <subcommand> [flags] --output json
 ```
 
-Always use `--output json` for structured results you can parse and present clearly.
+If `$CANVAS_CLI` is unset, call `getProviderConfig` to confirm integrations aren't configured and tell the user.
 
-## Available Subcommands
+**Strict rules — violations get your command denied:**
 
-### App Discovery
+- Use `$CANVAS_CLI` literally. Never `echo $CANVAS_CLI`, `ls $CANVAS_CLI`, `CANVAS_BIN=$(echo $CANVAS_CLI)`, or any variant that resolves the path. Never set `CANVAS_CLI=...` yourself.
+- Never use a literal `/tmp/sketch-int-*` path — always use the env var.
+- **Never pipe `$CANVAS_CLI` to a read command** (`| head`, `| tail`, `| cat`, `| less`, `| awk`, `| sed`). The Bash tool blocks this as a credential-exfiltration defense and returns a misleading `(eval):1: permission denied:`. Bound response size via the action's own input parameters instead (`maxResults`, `limit`, `metadataOnly`, `summary: true`, date filters, field selection). If no such parameter exists, fetch one item at a time by ID.
 
-**search-apps**
+If a command is denied, do NOT try to fix it by inspecting the path — try a different `$CANVAS_CLI <subcommand>` shape.
+
+## Auth model
+
+You never pass account IDs or secrets — the backend resolves the user's connected account from your identity automatically. If they haven't connected an app, commands return `CONNECTION_NOT_CONNECTED`; tell them to connect it in Settings → Integrations.
+
+## Subcommands
+
+### `search-apps` — discover apps / check connection
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js search-apps --queries "slack,gmail,notion" --output json
+# What apps does the user have connected? (no queries)
+$CANVAS_CLI search-apps --output json
+
+# Search the catalog; each match includes isConnected + connectionStatus
+$CANVAS_CLI search-apps --queries "slack,gmail,notion" --output json
 ```
 
-The response includes an `authStatus` field per app indicating whether the user has connected accounts or configured secrets. This eliminates the need for separate `get-accounts` or `user-secrets-get-status` calls in most flows.
+Each result has `nameSlug`, `name`, `isConnected` (bool), `connectionStatus` (`"valid"` | `"not_connected"`). If not connected, tell the user to connect it in Settings → Integrations.
 
-**authStatus fields:**
-
-| Field         | Type                                          | Description                                                          |
-| ------------- | --------------------------------------------- | -------------------------------------------------------------------- |
-| `type`        | `"none"` \| `"oauth"` \| `"secrets"`          | Auth model for this app                                              |
-| `isReady`     | `boolean`                                     | Whether the user can execute actions for this app right now          |
-| `accounts`    | `Array<{id, name, healthy, authProvisionId}>` | (OAuth only) Connected accounts with `authProvisionId` for execution |
-| `provider`    | `string`                                      | (Secrets only) Provider ID (e.g. `github`, `google`)                 |
-| `missingKeys` | `string[]`                                    | (Secrets only) Required keys not yet configured                      |
-
-- `type: "none"` — Twitter, LinkedIn, System — no user setup needed, always `isReady: true`
-- `type: "oauth"` — Pipedream apps (Slack, Gmail, etc.) — `isReady` when at least one healthy account exists; use `accounts[0].authProvisionId` in `configuredProps`
-- `type: "secrets"` — Canvas apps (GitHub, Aimfox, Fireflies, ClickUp, Google) — `isReady` when all required keys are configured; if `missingKeys` is non-empty, guide user to Settings → Secrets
-
-### Component Discovery
-
-**search-components**
+### `get-components` — list actions/triggers for apps
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js search-components --raw '{"queries": [{"app": "slack", "query": "send message"}]}' --output json
+# Single app with filters
+$CANVAS_CLI get-components --apps "slack" --component-type action --q "send" --limit 20 --output json
+
+# Multi-app inventory (q/limit ignored)
+$CANVAS_CLI get-components --apps "slack,gmail" --component-type action --output json
 ```
 
-**get-app-components**
+### `search-components` — natural-language component search
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-app-components --app slack --component-type action --output json
+$CANVAS_CLI search-components --raw '{"queries": [{"app": "slack", "query": "send message"}]}' --output json
 ```
 
-**bulk-get-components**
+### `get-component-definition` — get input schema
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js bulk-get-components --apps "slack,gmail" --component-type action --output json
+$CANVAS_CLI get-component-definition --key slack-send-message --output json
 ```
 
-**get-component-definition**
+Pass the `key` from `get-components` / `search-components` verbatim.
+
+### `direct-execute-action` — run any action
+
+Pass only the action's input fields in `--configured-props` — no authProvisionId, no accountId.
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-component-definition --key slack_slack-send-message --output json
+$CANVAS_CLI direct-execute-action --component-key slack-send-message --configured-props '{"channel":"C01234","text":"Hello!"}' --output json
 ```
 
-### Accounts
+Workflow: `search-apps --queries "<app>"` → confirm `isConnected` → `get-component-definition` → execute with schema fields.
 
-**get-accounts**
+### `fetch-remote-options` — resolve dropdown values (e.g. channel name → ID)
 
-> **Note:** In most flows you do NOT need this — `search-apps` already returns `authStatus` with connected accounts and `authProvisionId` values. Use `get-accounts` only when you need to list accounts without a prior `search-apps` call, or to refresh account state mid-flow.
+**Only use this when you don't already have the ID.** If the ID is available from a URL, a prior API response, or obvious context, skip this and pass the ID directly to `direct-execute-action`.
+
+**If results are ambiguous, stop and ask the user.** If `fetch-remote-options` returns multiple matches for a name (e.g. two users named "Alex", two channels called "general"), do NOT guess or pick the first result — present the options to the user and ask them to confirm which one they mean before proceeding.
 
 ```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js get-accounts --app slack --output json
+# List all options
+$CANVAS_CLI fetch-remote-options --component-key slack-send-message --field-name channel --output json
+
+# Fuzzy match best option
+$CANVAS_CLI fetch-remote-options --component-key slack-send-message --field-name channel --search-query "general" --output json
+
+# Dependent dropdown
+$CANVAS_CLI fetch-remote-options --component-key clickup-create-task --field-name list --current-configuration '{"space":"12345"}' --output json
 ```
 
-### User Secrets
+`--current-configuration` MUST be a single-quoted JSON object (`'{"key":"value"}'`). If `BadRequest` / `NOT_IMPLEMENTED` persists on a dependent dropdown, don't retry — use a sibling list action (`<app>-get-spaces`, `<app>-get-lists`) via `direct-execute-action` and use the returned IDs directly.
 
-**user-secrets-get-status**
-
-> **Note:** In most flows you do NOT need this — `search-apps` already returns `authStatus` with `isReady` and `missingKeys` for Canvas apps. Use `user-secrets-get-status` only when you need to check secrets without a prior `search-apps` call, or for detailed provider diagnostics.
-
-Check whether a user has configured secrets for one or more providers. If secrets are missing, guide the user to Settings → Secrets.
+### Web tools (no auth)
 
 ```bash
-# Check a specific provider
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js user-secrets-get-status --provider github --output json
-
-# Check all supported providers (omit --provider)
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js user-secrets-get-status --output json
+$CANVAS_CLI direct-execute-web-search --query "TypeScript best practices" --limit 5 --output json
+$CANVAS_CLI direct-execute-web-scrape --url "https://example.com" --formats markdown --only-main-content true --output json
 ```
 
-| Parameter    | Type   | Required | Description                                                                |
-| ------------ | ------ | -------- | -------------------------------------------------------------------------- |
-| `--provider` | string | No       | Provider ID (e.g. `github`). If omitted, returns status for all providers. |
+**Web scraping** is for public, unauthenticated web pages only — articles, landing pages, documentation, public blogs, and social platforms (LinkedIn, X/Twitter, Reddit). If the URL requires a login or belongs to a productivity/workspace app, do NOT use the scraper — use that app's native action via `direct-execute-action` instead.
 
-**Response:**
+The following will NOT work with `direct-execute-web-scrape`:
+- Google Sheets, Google Docs, Google Drive links
+- Airtable bases and views
+- Notion pages and databases
+- ClickUp docs and tasks
+- Any other app that redirects to a login page
 
-```json
-{
-  "success": true,
-  "providers": [
-    {
-      "provider": "github",
-      "isSupported": true,
-      "isConfigured": true,
-      "requiredKeys": ["GITHUB_PAT"],
-      "configuredKeys": ["GITHUB_PAT"],
-      "missingKeys": []
-    }
-  ]
-}
-```
+For these, use the app's native action (e.g. `google-sheets-get-values`, `airtable-list-records`, `notion-retrieve-page`, `clickup-get-doc-page`).
 
-**user-secrets-upsert**
+**Note on ClickUp `content_format`:** Despite the schema describing `"markdown"` as the default, the API only accepts `text/md` or `text/plain` as valid values.
 
-Create or replace secrets for a provider. Secrets are encrypted server-side — plain-text values are never returned. If secrets already exist for the provider, they are replaced.
+## Handling large responses
 
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js user-secrets-upsert --provider github --secrets '{"GITHUB_PAT":"ghp_xxxx"}' --output json
-```
+List actions return big payloads (Gmail, Slack, GitHub, ClickUp, calendars, Notion). Always bound the response via input parameters — **never via shell pipes**. Use `metadataOnly`, `maxResults`, `limit`, `summary: true`, `withTextPayload: false`, date filters, field selection.
 
-| Parameter    | Type                   | Required | Description                                                       |
-| ------------ | ---------------------- | -------- | ----------------------------------------------------------------- |
-| `--provider` | string                 | Yes      | Provider ID (e.g. `github`). Must be a supported provider.        |
-| `--secrets`  | Record<string, string> | Yes      | Key/value pairs. Must include all required keys for the provider. |
+**Two-pass pattern:** list with metadata → pick the item(s) → fetch full content only for those.
 
-### Action Execution
+## Error handling
 
-**direct-execute-action**
+Describe errors in terms of the app, never mention Canvas.
 
-All actions — Pipedream and Canvas — are executed through this single command. Canvas action keys (e.g. `fireflies-*`, `github-*`, `twitter-*`) are automatically routed to the Canvas executor.
-
-**Before calling:**
-
-1. Use `search-apps` to find the app and check `authStatus.isReady`
-2. Use `search-components` or `get-app-components` to find the action key
-3. Use `get-component-definition` to get the input schema
-4. Execute via `direct-execute-action`
-
-**How to pass auth based on `authStatus.type`:**
-
-| `authStatus.type` | What to do                                                                                                                                                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `"oauth"`         | Include `{ "app_slug": { "authProvisionId": "<id>" } }` in `configuredProps`. If `authStatus.accounts` has one entry, use it directly. If multiple exist, ask the user which account to use (show them the `name` field from each account) |
-| `"secrets"`       | Nothing — credentials are resolved automatically from the user's stored secrets. If `authStatus.isReady` is `false`, guide user to Settings → Secrets first                                                                                |
-| `"none"`          | Nothing — system-level credentials are used automatically                                                                                                                                                                                  |
-
-**Examples:**
-
-Slack — send message (OAuth, needs `authProvisionId`):
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key slack_slack-send-message --configured-props '{"channel":"C01234","text":"Hello!","slack":{"authProvisionId":"apn_xxxx"}}' --output json
-```
-
-Twitter — search tweets (system credentials, nothing extra needed):
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key twitter-get-tweets --configured-props '{"query":"AI agents","limit":5}' --output json
-```
-
-Fireflies — list transcripts (user secrets, nothing extra needed):
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-action --component-key fireflies-list-transcripts --configured-props '{}' --output json
-```
-
-### Web Tools (no auth required)
-
-**direct-execute-web-search**
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-web-search --query "TypeScript best practices" --limit 5 --output json
-```
-
-**direct-execute-web-scrape**
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js direct-execute-web-scrape --url "https://example.com" --formats markdown --only-main-content true --output json
-```
-
-### Fetch Remote Options
-
-**fetch-remote-options**
-
-Fetch dynamic dropdown options for a field from a Pipedream component or Canvas app. Use this to populate dependent dropdowns (e.g., Slack channels, ClickUp spaces, GitHub repos) when building action inputs. Supports an optional fuzzy search to find the best match from the options list.
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js fetch-remote-options --component-key slack-send-message --field-name channel --account-id apn_xxxx --output json
-```
-
-With fuzzy search:
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js fetch-remote-options --component-key slack-send-message --field-name channel --account-id apn_xxxx --search-query "general" --output json
-```
-
-With dependent field configuration:
-
-```bash
-CANVAS_API_KEY_MCP=$CANVAS_API_KEY CANVAS_USER_EMAIL=$USER_EMAIL node ~/.claude/skills/canvas/canvas-cli.js fetch-remote-options --component-key clickup-create-task --field-name list --account-id "secrets:clickup" --current-configuration '{"space":"12345"}' --output json
-```
-
-**Parameters:**
-
-| Parameter                 | Type                    | Required | Description                                                        |
-| ------------------------- | ----------------------- | -------- | ------------------------------------------------------------------ |
-| `--component-key`         | string                  | Yes      | The component key (e.g. `slack-send-message`)                      |
-| `--field-name`            | string                  | Yes      | The field name to fetch options for (e.g. `channel`)               |
-| `--account-id`            | string                  | Yes      | The auth provision ID for the connected account                    |
-| `--current-configuration` | Record<string, unknown> | No       | Current field values for dependent dropdowns                       |
-| `--search-query`          | string                  | No       | Fuzzy search query — returns the best match instead of all options |
-
-**How it works:**
-
-- For **Pipedream** accounts: calls the Pipedream configure-component API to fetch options for the given field.
-- For **Canvas** accounts (accountId starts with `secrets:`): uses the Canvas executor's `getRemoteOptions` to fetch options using the user's stored credentials.
-- When `searchQuery` is provided, performs fuzzy matching on the option labels and returns the single best match.
-
-**Response (no search query):**
-
-```json
-{ "success": true, "data": { "options": [{ "label": "general", "value": "C01234" }, ...] } }
-```
-
-**Response (with search query — match found):**
-
-```json
-{ "success": true, "match": { "label": "general", "value": "C01234" } }
-```
-
-**Response (with search query — no match):**
-
-```json
-{ "success": true, "match": null }
-```
-
-**When to use:**
-
-- A component field has `remoteOptions` enabled and you need to resolve a human-readable name (e.g. channel name) to its ID.
-- A dropdown depends on another field's value — pass the dependency via `currentConfiguration`.
-- The user mentions a name like "general" for a Slack channel — use `searchQuery` to fuzzy-match it.
-
-## Workflow Examples
-
-### Pipedream action (e.g. Slack)
-
-1. User: "Send a message to #general on Slack"
-2. Search apps: `search-apps --queries "slack"` → check `authStatus.isReady` and get `authProvisionId` from `authStatus.accounts[0]` (e.g. `apn_GXh0e4v`)
-3. Get components: `get-app-components --app slack --component-type action`
-4. Get definition: `get-component-definition --key slack_slack-send-message`
-5. Resolve channel: `fetch-remote-options --component-key slack-send-message --field-name channel --account-id <authProvisionId from step 2> --search-query "general"` → returns the matching channel ID
-6. Execute: `direct-execute-action --component-key slack_slack-send-message --configured-props '{...}'`
-
-### Canvas action (e.g. Fireflies)
-
-1. User: "Get my recent Fireflies transcripts"
-2. Search apps: `search-apps --queries "fireflies"` → check `authStatus.isReady` (if false, guide user to Settings → Secrets)
-3. Search components: `search-components --raw '{"queries": [{"app": "fireflies", "query": "list transcripts"}]}'`
-4. Get definition: `get-component-definition --key fireflies-list-transcripts`
-5. Execute: `direct-execute-action --component-key fireflies-list-transcripts --configured-props '{}'`
-
-## Error Handling
-
-- Non-zero exit code: show the error message to the user
-- 401/403 in output: tell user the API key may be invalid, ask an admin to check the Canvas integration provider config in the dashboard
-- `MISSING_CREDENTIALS` error: check `authStatus` from `search-apps` (or use `user-secrets-get-status` to confirm), then guide user to connect the app via Settings → Secrets
-- `INVALID_KEY` error: the action key is not recognized — use component discovery to find valid keys
-- Missing connected account (Pipedream actions): guide user to set up accounts in Sketch dashboard first.
+- **`CONNECTION_NOT_CONNECTED`** → "Looks like <app> isn't connected — please connect it in Settings → Integrations and try again."
+- **`INVALID_KEY`** → bad component key; re-discover via `get-components` / `search-components`.
+- **`EXECUTION_FAILED` with 401/403** → "Your <app> connection looks expired — please reconnect it in Settings → Integrations."
+- **`(eval):1: permission denied:`** → you piped `$CANVAS_CLI` to a read command. Do NOT report this as an app failure. Re-issue without the pipe and bound response via input parameters.
+- **Other non-zero exits** → show the underlying error, framed in terms of the app.

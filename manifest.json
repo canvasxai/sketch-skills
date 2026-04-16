@@ -4,8 +4,14 @@
     "canvas": {
       "name": "Canvas",
       "description": "App integrations, automation, web search/scrape, API calls via Canvas AI",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "path": "skills/canvas"
+    },
+    "clickup": {
+      "name": "ClickUp",
+      "description": "Task and project management — create, update, and track tasks, comments, and docs in ClickUp",
+      "version": "1.0.0",
+      "path": "skills/clickup"
     },
     "icp-discovery": {
       "name": "ICP Discovery",
