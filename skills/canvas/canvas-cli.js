@@ -44840,7 +44840,7 @@ const generatorTools = [
 ];
 const embeddedMetadata = {
 	"schemaVersion": 1,
-	"generatedAt": "2026-04-21T11:37:43.136Z",
+	"generatedAt": "2026-04-21T12:30:02.412Z",
 	"generator": {
 		"name": "backend",
 		"version": "1.0.0"
