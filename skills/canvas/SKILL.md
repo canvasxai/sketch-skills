@@ -54,15 +54,20 @@ $CANVAS_CLI search-apps --queries "slack,gmail,notion" --output json
 
 Each result has `nameSlug`, `name`, `isConnected` (bool), `connectionStatus` (`"valid"` | `"not_connected"`). If not connected, tell the user to connect it in Settings → Integrations.
 
-### `get-components` — list actions/triggers for apps
+### `get-components` — list actions/triggers for one or more apps
 
 ```bash
-# Single app with filters
+# Single app with optional keyword filter and type filter
 $CANVAS_CLI get-components --apps "slack" --component-type action --q "send" --limit 20 --output json
 
-# Multi-app inventory (q/limit ignored)
+# List ALL actions for an app (no filter)
+$CANVAS_CLI get-components --apps "google_sheets" --component-type action --output json
+
+# Multi-app inventory (q and limit are ignored in multi-app mode)
 $CANVAS_CLI get-components --apps "slack,gmail" --component-type action --output json
 ```
+
+> ⚠️ Use underscores in app slugs (e.g. `google_sheets`, not `google-sheets`). Use `--apps` (not `--app`) even for a single app.
 
 ### `search-components` — natural-language component search
 
@@ -117,7 +122,6 @@ $CANVAS_CLI direct-execute-web-scrape --url "https://example.com" --formats mark
 **Web scraping** is for public, unauthenticated web pages only — articles, landing pages, documentation, public blogs, and social platforms (LinkedIn, X/Twitter, Reddit). If the URL requires a login or belongs to a productivity/workspace app, do NOT use the scraper — use that app's native action via `direct-execute-action` instead.
 
 The following will NOT work with `direct-execute-web-scrape`:
-
 - Google Sheets, Google Docs, Google Drive links
 - Airtable bases and views
 - Notion pages and databases
@@ -139,6 +143,24 @@ sh -c '"$CANVAS_CLI" <subcommand> [flags] --output json' | jq ...
 ```
 
 **Two-pass pattern:** list with metadata → pick the item(s) → fetch full content only for those.
+
+## App-Specific Skills
+
+For apps that are used frequently or have complex workflows, a dedicated skill document improves efficiency — it pre-caches known IDs, codifies common workflows, and removes the need to re-discover actions each session.
+
+**When to offer:** After completing a task for an app, if you had to resolve IDs, discover actions, or run multiple steps, offer to create an app-specific skill. Example prompt:
+
+> "I noticed we did a few steps to look up spaces and users in [App]. Want me to save a skill doc for [App] so future requests are faster? I'll capture the known IDs and common workflows."
+
+**How to create one:** Use the ClickUp skill (`~/.claude/skills/clickup/SKILL.md`) as a reference template. A good app skill includes:
+- Available actions (key + description)
+- Common workflows with ready-to-run CLI examples
+- Known IDs section (workspace/team IDs, user IDs, frequently used list/channel/space IDs)
+- Any app-specific gotchas (e.g. content_format quirks, pagination patterns)
+
+Save the file to the org skills directory: `~/.claude/skills/<app-slug>/SKILL.md`
+
+Once created, the skill will be auto-loaded in future sessions whenever that app is relevant.
 
 ## Error handling
 

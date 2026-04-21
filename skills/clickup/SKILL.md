@@ -6,31 +6,19 @@ provider-type: canvas
 
 # ClickUp
 
-ClickUp is the team's _primary project management tool_. Use this skill for all task, project, and team management operations — creating tasks, checking status, updating priorities, listing work, and more.
+ClickUp is the team's *primary project management tool*. Use this skill for all task, project, and team management operations — creating tasks, checking status, updating priorities, listing work, and more.
 
 This skill runs via the Canvas CLI (`$CANVAS_CLI`). Auth is injected automatically — never pass `accountId` or credentials manually.
 
-## Workspace Resolution
-
-On first use, resolve the workspace and cache the `team_id` for subsequent calls:
-
-```bash
-$CANVAS_CLI fetch-remote-options \
-  --component-key clickup-get-tasks-by-user \
-  --field-name team_id \
-  --output json
-```
-
-Similarly, resolve `space_id`, `list_id`, `folder_id`, and `user_id` via `fetch-remote-options` as needed — then reuse them for the rest of the conversation. Don't ask the user for raw IDs unless they volunteer them.
+On first use, resolve your workspace `team_id` via `clickup-context` (or the `Resolving IDs` snippets below) and record it in the *Known IDs* section at the bottom of this file. Reuse it from there on subsequent runs.
 
 ## Dos and Don'ts
 
 ### DO
-
 - Run all `$CANVAS_CLI` commands directly in Bash — no subagent needed.
 - Use `--current-configuration '{"key":"value"}'` (single-quoted JSON) when calling `fetch-remote-options` with a dependent dropdown.
 - Use `archived: false` and `page: 0` on list/task fetches to keep response size manageable.
-- Cache resolved IDs (workspace, space, list, user) within the conversation to avoid redundant lookups.
+- Prefer known IDs (see *Known IDs* section) to skip unnecessary resolution steps.
 - Use `--search-query "<name>"` with `fetch-remote-options` to narrow results when looking up a specific user, space, or list by name.
 - **If results are ambiguous** (multiple matches returned), stop and present the options to the user — ask them to confirm which one they mean before proceeding. Never guess or pick the first result.
 - Prefer bounding results via action parameters (`page`, `archived`, `limit`) instead of shell post-processing. If you need shell post-processing (`jq`, `grep`, `wc`), wrap the CLI invocation in `sh -c` first:
@@ -39,69 +27,69 @@ Similarly, resolve `space_id`, `list_id`, `folder_id`, and `user_id` via `fetch-
   ```
 
 ### DON'T
-
 - **Never** pass `"accountId"` in `--configured-props` — auth is injected automatically by the CLI.
 - **Never** pipe `$CANVAS_CLI ...` directly — the SDK Bash tool returns `(eval):1: permission denied:` when a command from an env var appears on the left side of a pipe. Always use the `sh -c` wrapper form shown above.
-- **Never** hardcode IDs — always resolve them via `fetch-remote-options` on first use.
+- **Never** hardcode a `space_id`, `list_id`, or `folder_id` that isn't in the Known IDs section — resolve it via `fetch-remote-options`.
 
 ## Available Actions
 
 ### Tasks
-
-| Key                          | Description                                                    |
-| ---------------------------- | -------------------------------------------------------------- |
-| `clickup-create-task`        | Create a new task in a ClickUp list                            |
-| `clickup-get-task`           | Retrieve a single task by its ID                               |
-| `clickup-update-task`        | Update an existing task's properties                           |
-| `clickup-delete-task`        | Delete a task from the workspace                               |
-| `clickup-get-tasks`          | Retrieve all tasks from a list                                 |
-| `clickup-get-tasks-by-user`  | Get tasks assigned to a specific user                          |
-| `clickup-get-tasks-in-space` | Get all tasks in a space (across all folders and lists)         |
-| `clickup-get-users`          | Get team members/users from the workspace                      |
+| Key | Description |
+|-----|-------------|
+| `clickup-context` | Get comprehensive context about the authenticated user, workspaces, lists, and teammates. Use as the first action to populate workspace hierarchy. |
+| `clickup-find-tasks` | Primary action for finding tasks. Replaces `get-tasks`, `get-tasks-by-user`, and `get-tasks-in-space`. Supports filtering by space, list, assignee, status, due dates, and text search. Use `summary_only: true` for count queries. |
+| `clickup-project-summary` | Get a comprehensive summary of a list including task counts by status, recent comments, and URL. Accepts a list name or numeric ID. |
+| `clickup-create-task` | Create a new task in a ClickUp list |
+| `clickup-get-task` | Retrieve a single task by its ID |
+| `clickup-update-task` | Update an existing task's properties |
+| `clickup-delete-task` | Delete a task from the workspace |
+| `clickup-get-users` | Get team members/users from the workspace |
 
 ### Comments
-
-| Key                           | Description                                                |
-| ----------------------------- | ---------------------------------------------------------- |
-| `clickup-create-task-comment` | Add a comment to a task (optionally notify or tag users)   |
-| `clickup-get-task-comments`   | Retrieve all comments from a task                          |
-| `clickup-create-list-comment` | Add a comment to a list                                    |
-| `clickup-get-list-comments`   | Retrieve all comments from a list                          |
-| `clickup-update-comment`      | Update a comment's text or mark it resolved/unresolved     |
-| `clickup-delete-comment`      | Delete a comment from a task or list (irreversible)        |
+| Key | Description |
+|-----|-------------|
+| `clickup-create-task-comment` | Add a comment to a task (optionally notify assignees or tag users) |
+| `clickup-get-task-comments` | Retrieve all comments from a task |
+| `clickup-create-list-comment` | Add a comment to a list |
+| `clickup-get-list-comments` | Retrieve all comments from a list |
+| `clickup-update-comment` | Update a comment's text or mark it resolved/unresolved |
+| `clickup-delete-comment` | Delete a comment from a task or list (irreversible) |
 
 ### Docs
-
-| Key                       | Description                                          |
-| ------------------------- | ---------------------------------------------------- |
-| `clickup-search-docs`     | Search for docs by name or keyword                   |
-| `clickup-create-doc`      | Create a new doc (optionally with an initial page)   |
-| `clickup-get-doc`         | Retrieve a doc's metadata including its page IDs     |
-| `clickup-get-doc-page`    | Retrieve the content of a single page from a doc     |
-| `clickup-create-doc-page` | Create a new page inside a doc (optionally nested)   |
-| `clickup-edit-doc-page`   | Update a page's name and/or content                  |
+| Key | Description |
+|-----|-------------|
+| `clickup-search-docs` | Search for docs by name or keyword |
+| `clickup-create-doc` | Create a new doc (optionally with an initial page) |
+| `clickup-get-doc` | Retrieve a doc's metadata including its page IDs |
+| `clickup-get-doc-page` | Retrieve the content of a single page from a doc |
+| `clickup-create-doc-page` | Create a new page inside a doc (optionally nested) |
+| `clickup-edit-doc-page` | Update a page's name and/or content |
 
 ## Common Workflows
 
-### Fetch tasks for a user
-
-First resolve the user ID:
-
-```bash
-$CANVAS_CLI fetch-remote-options \
-  --component-key clickup-get-tasks-by-user \
-  --field-name assignee_id \
-  --current-configuration '{"team_id":"<team_id>"}' \
-  --search-query "<name>" \
-  --output json
-```
-
-Then fetch tasks:
+### Get workspace context (start here)
 
 ```bash
 $CANVAS_CLI direct-execute-action \
-  --component-key clickup-get-tasks-by-user \
-  --configured-props '{"team_id":"<team_id>","assignee_id":"<user_id>","archived":false,"page":0}' \
+  --component-key clickup-context \
+  --configured-props '{}' \
+  --output json
+```
+
+### Fetch tasks for a user
+
+```bash
+$CANVAS_CLI direct-execute-action \
+  --component-key clickup-find-tasks \
+  --configured-props '{"team_id":"<team_id>","assignee":"<name or user_id or email>","page":0}' \
+  --output json
+```
+
+For a quick count only, use `summary_only: true`:
+```bash
+$CANVAS_CLI direct-execute-action \
+  --component-key clickup-find-tasks \
+  --configured-props '{"team_id":"<team_id>","assignee":"<name>","summary_only":true}' \
   --output json
 ```
 
@@ -109,8 +97,26 @@ $CANVAS_CLI direct-execute-action \
 
 ```bash
 $CANVAS_CLI direct-execute-action \
-  --component-key clickup-get-tasks \
-  --configured-props '{"list_id":"<list_id>"}' \
+  --component-key clickup-find-tasks \
+  --configured-props '{"team_id":"<team_id>","list_id":"<list_id>","page":0}' \
+  --output json
+```
+
+### Get all tasks in a space
+
+```bash
+$CANVAS_CLI direct-execute-action \
+  --component-key clickup-find-tasks \
+  --configured-props '{"team_id":"<team_id>","space_id":"<space_id>","page":0}' \
+  --output json
+```
+
+### Get list summary
+
+```bash
+$CANVAS_CLI direct-execute-action \
+  --component-key clickup-project-summary \
+  --configured-props '{"team_id":"<team_id>","list_id":"<list_id_or_name>"}' \
   --output json
 ```
 
@@ -194,10 +200,7 @@ $CANVAS_CLI direct-execute-action \
 
 ## Resolving IDs
 
-ClickUp's hierarchy is: workspace → space → folder → list → task. Resolve each level via `fetch-remote-options`, passing the parent ID in `--current-configuration`.
-
 ### Get workspaces
-
 ```bash
 $CANVAS_CLI fetch-remote-options \
   --component-key clickup-get-tasks-by-user \
@@ -206,34 +209,55 @@ $CANVAS_CLI fetch-remote-options \
 ```
 
 ### Get spaces (requires team_id)
-
 ```bash
 $CANVAS_CLI fetch-remote-options \
-  --component-key clickup-get-tasks-in-space \
+  --component-key clickup-find-tasks \
   --field-name space_id \
   --current-configuration '{"team_id":"<team_id>"}' \
   --output json
 ```
 
 ### Get lists within a space (requires space_id)
-
 ```bash
 $CANVAS_CLI fetch-remote-options \
-  --component-key clickup-get-tasks \
+  --component-key clickup-find-tasks \
   --field-name list_id \
-  --current-configuration '{"space_id":"<space_id>"}' \
+  --current-configuration '{"team_id":"<team_id>","space_id":"<space_id>"}' \
   --output json
 ```
 
 ### Find a user by name
 
+Use `clickup-get-users` to list all workspace members:
 ```bash
-$CANVAS_CLI fetch-remote-options \
-  --component-key clickup-get-tasks-by-user \
-  --field-name assignee_id \
-  --current-configuration '{"team_id":"<team_id>"}' \
-  --search-query "<last name or full name>" \
+$CANVAS_CLI direct-execute-action \
+  --component-key clickup-get-users \
+  --configured-props '{"team_id":"<team_id>"}' \
   --output json
 ```
 
-> Tip: Search by last name or unique part of the name to avoid ambiguous matches.
+> Tip: `clickup-find-tasks` also accepts `assignee` as a name, email, or user ID directly — no prior resolution needed.
+
+## Known IDs
+
+**Keep this section up to date.** Whenever you resolve a new workspace, space, list, or user ID that isn't already here, add it. This avoids redundant `fetch-remote-options` calls in future sessions. Only track stable entities — workspaces, spaces, lists, and users. Do NOT add task IDs or doc IDs (too transient).
+
+### Workspaces
+| Name | team_id |
+|------|---------|
+| _(add workspaces as discovered)_ | |
+
+### Users
+| Name | user_id |
+|------|---------|
+| _(add users as discovered)_ | |
+
+### Lists
+| Name | list_id |
+|------|---------|
+| _(add lists as discovered)_ | |
+
+### Spaces
+| Name | space_id |
+|------|----------|
+| _(add spaces as discovered)_ | |
