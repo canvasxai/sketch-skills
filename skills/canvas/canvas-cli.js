@@ -6,7 +6,7 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __commonJSMin = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod), cb = null), mod.exports);
 var __exportAll = (all, no_symbols) => {
 	let target = {};
 	for (var name in all) {
@@ -42,22 +42,22 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 //#endregion
 let node_child_process = require("node:child_process");
 let node_path = require("node:path");
-node_path = __toESM(node_path);
+node_path = __toESM(node_path, 1);
 let node_fs = require("node:fs");
-node_fs = __toESM(node_fs);
+node_fs = __toESM(node_fs, 1);
 let node_process = require("node:process");
-node_process = __toESM(node_process);
+node_process = __toESM(node_process, 1);
 let node_fs_promises = require("node:fs/promises");
-node_fs_promises = __toESM(node_fs_promises);
+node_fs_promises = __toESM(node_fs_promises, 1);
 let node_os = require("node:os");
-node_os = __toESM(node_os);
+node_os = __toESM(node_os, 1);
 let node_url = require("node:url");
 let node_module = require("node:module");
 let node_stream = require("node:stream");
 let node_crypto = require("node:crypto");
-node_crypto = __toESM(node_crypto);
+node_crypto = __toESM(node_crypto, 1);
 let node_http = require("node:http");
-node_http = __toESM(node_http);
+node_http = __toESM(node_http, 1);
 
 //#region ../../../../.npm/_npx/bdbf2deecdd22bc5/node_modules/commander/lib/error.js
 var require_error = /* @__PURE__ */ __commonJSMin(((exports) => {
@@ -3431,7 +3431,7 @@ function resolveEnvPlaceholders(value) {
 		return envValue;
 	});
 	if (missing.size > 0) {
-		const names = [...missing].sort().join(", ");
+		const names = [...missing].toSorted().join(", ");
 		throw new Error(`Environment variable(s) ${names} must be set for MCP header substitution.`);
 	}
 	return replaced;
@@ -17495,6 +17495,7 @@ const RawLifecycleSchema = union$1([
 		idleTimeoutMs: number$3().int().positive().optional().describe("Idle timeout in milliseconds before disconnecting")
 	})
 ]).describe("Server connection lifecycle: keep-alive maintains persistent connections, ephemeral connects on-demand");
+const ToolNamesSchema = array$1(string$3()).describe("Exact MCP tool names");
 const RawLoggingSchema = object$1({ daemon: object$1({ enabled: boolean$3().optional().describe("Enable daemon logging for this server") }).optional().describe("Daemon-specific logging configuration") }).optional().describe("Logging configuration for the server");
 const RawEntrySchema = object$1({
 	description: string$3().optional().describe("Human-readable description of the server"),
@@ -17524,7 +17525,21 @@ const RawEntrySchema = object$1({
 	bearerTokenEnv: string$3().optional().describe("Environment variable name containing the bearer token (camelCase)"),
 	bearer_token_env: string$3().optional().describe("Environment variable name containing the bearer token (snake_case)"),
 	lifecycle: RawLifecycleSchema.optional(),
-	logging: RawLoggingSchema
+	logging: RawLoggingSchema,
+	allowedTools: ToolNamesSchema.optional().describe("Only these exact tool names are exposed (camelCase)"),
+	allowed_tools: ToolNamesSchema.optional().describe("Only these exact tool names are exposed (snake_case)"),
+	blockedTools: ToolNamesSchema.optional().describe("These exact tool names are hidden and blocked (camelCase)"),
+	blocked_tools: ToolNamesSchema.optional().describe("These exact tool names are hidden and blocked (snake_case)")
+}).superRefine((entry, ctx) => {
+	const hasAllowed = entry.allowedTools !== undefined || entry.allowed_tools !== undefined;
+	const hasBlocked = entry.blockedTools !== undefined || entry.blocked_tools !== undefined;
+	if (hasAllowed && hasBlocked) {
+		ctx.addIssue({
+			code: "custom",
+			message: "Specify either allowedTools or blockedTools, not both.",
+			path: ["allowedTools"]
+		});
+	}
 }).describe("MCP server definition supporting both HTTP/SSE and stdio transports");
 const RawConfigSchema = object$1({
 	mcpServers: record$1(string$3(), RawEntrySchema).describe("Map of server names to their configurations"),
@@ -19837,7 +19852,9 @@ var require_toml_parser = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				switch (value[_type]) {
 					case INLINE_TABLE: return "inline-table";
 					case INLINE_LIST: return "inline-list";
+					/* istanbul ignore next */
 					case TABLE: return "table";
+					/* istanbul ignore next */
 					case LIST: return "list";
 					case FLOAT: return "float";
 					case INTEGER: return "integer";
@@ -21152,6 +21169,7 @@ var require_stringify = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			case "datetime": return true;
 			case "array": return value.length === 0 || tomlType(value[0]) !== "table";
 			case "table": return Object.keys(value).length === 0;
+			/* istanbul ignore next */
 			default: return false;
 		}
 	}
@@ -21228,6 +21246,7 @@ var require_stringify = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			case "datetime": return stringifyDatetime(value);
 			case "array": return stringifyInlineArray(value.filter((_) => tomlType(_) !== "null" && tomlType(_) !== "undefined" && tomlType(_) !== "nan"));
 			case "table": return stringifyInlineTable(value);
+			/* istanbul ignore next */
 			default: throw typeError(type);
 		}
 	}
@@ -21868,6 +21887,8 @@ function normalizeServerEntry(name, raw, baseDir, source, sources) {
 	}
 	const lifecycle = resolveLifecycle(name, raw.lifecycle, command);
 	const logging = normalizeLogging(raw.logging);
+	const allowedTools = raw.allowedTools ?? raw.allowed_tools;
+	const blockedTools = raw.blockedTools ?? raw.blocked_tools;
 	const defaultedOauthCommand = !oauthCommand && name.toLowerCase() === "gmail" && command.kind === "stdio" ? { args: ["auth", "http://localhost:3000/oauth2callback"] } : oauthCommand;
 	return {
 		name,
@@ -21883,7 +21904,9 @@ function normalizeServerEntry(name, raw, baseDir, source, sources) {
 		source,
 		sources,
 		lifecycle,
-		logging
+		logging,
+		...allowedTools !== undefined ? { allowedTools: [...allowedTools] } : {},
+		...blockedTools !== undefined ? { blockedTools: [...blockedTools] } : {}
 	};
 }
 const __configInternals = { ensureHttpAcceptHeader };
@@ -22271,7 +22294,7 @@ const RequestIdSchema = union$1([string$3(), number$3().int()]);
 * A request that expects a response.
 */
 const JSONRPCRequestSchema = object$1({
-	jsonrpc: literal$1(JSONRPC_VERSION),
+	jsonrpc: literal$1("2.0"),
 	id: RequestIdSchema,
 	...RequestSchema.shape
 }).strict();
@@ -22280,7 +22303,7 @@ const isJSONRPCRequest = (value) => JSONRPCRequestSchema.safeParse(value).succes
 * A notification which does not expect a response.
 */
 const JSONRPCNotificationSchema = object$1({
-	jsonrpc: literal$1(JSONRPC_VERSION),
+	jsonrpc: literal$1("2.0"),
 	...NotificationSchema.shape
 }).strict();
 const isJSONRPCNotification = (value) => JSONRPCNotificationSchema.safeParse(value).success;
@@ -22288,7 +22311,7 @@ const isJSONRPCNotification = (value) => JSONRPCNotificationSchema.safeParse(val
 * A successful (non-error) response to a request.
 */
 const JSONRPCResultResponseSchema = object$1({
-	jsonrpc: literal$1(JSONRPC_VERSION),
+	jsonrpc: literal$1("2.0"),
 	id: RequestIdSchema,
 	result: ResultSchema
 }).strict();
@@ -22323,7 +22346,7 @@ var ErrorCode;
 * A response to a request that indicates an error occurred.
 */
 const JSONRPCErrorResponseSchema = object$1({
-	jsonrpc: literal$1(JSONRPC_VERSION),
+	jsonrpc: literal$1("2.0"),
 	id: RequestIdSchema.optional(),
 	error: object$1({
 		code: number$3().int(),
@@ -24295,7 +24318,7 @@ function shouldAttemptFallback(response, pathname) {
 */
 async function discoverMetadataWithFallback(serverUrl, wellKnownType, fetchFn, opts) {
 	const issuer = new URL(serverUrl);
-	const protocolVersion = opts?.protocolVersion ?? LATEST_PROTOCOL_VERSION;
+	const protocolVersion = opts?.protocolVersion ?? "2025-11-25";
 	let url;
 	if (opts?.metadataUrl) {
 		url = new URL(opts.metadataUrl);
@@ -24329,7 +24352,7 @@ async function discoverOAuthMetadata(issuer, { authorizationServerUrl, protocolV
 	if (typeof authorizationServerUrl === "string") {
 		authorizationServerUrl = new URL(authorizationServerUrl);
 	}
-	protocolVersion ?? (protocolVersion = LATEST_PROTOCOL_VERSION);
+	protocolVersion ?? (protocolVersion = "2025-11-25");
 	const response = await discoverMetadataWithFallback(authorizationServerUrl, "oauth-authorization-server", fetchFn, {
 		protocolVersion,
 		metadataServerUrl: authorizationServerUrl
@@ -25923,7 +25946,7 @@ async function waitForChildClose$1(child, timeoutMs) {
 	if (child.exitCode !== null && child.exitCode !== undefined) {
 		return;
 	}
-	await new Promise((resolve) => {
+	await new Promise((resolve, reject) => {
 		let settled = false;
 		const finish = () => {
 			if (settled) {
@@ -25932,6 +25955,14 @@ async function waitForChildClose$1(child, timeoutMs) {
 			settled = true;
 			cleanup();
 			resolve();
+		};
+		const timeout = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			reject(new Error(`Timed out waiting ${timeoutMs}ms for child process to close.`));
 		};
 		const cleanup = () => {
 			child.removeListener("close", finish);
@@ -25946,7 +25977,7 @@ async function waitForChildClose$1(child, timeoutMs) {
 		child.once("error", finish);
 		let timer;
 		if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
-			timer = setTimeout(finish, timeoutMs);
+			timer = setTimeout(timeout, timeoutMs);
 			timer.unref?.();
 		}
 	});
@@ -26135,7 +26166,10 @@ function collectDescendantsFromChildren(rootPid, children) {
 	}
 	return result;
 }
-const __testHooks = { listDescendantPids };
+const __testHooks = {
+	listDescendantPids,
+	waitForChildClose: waitForChildClose$1
+};
 async function waitForTreeExit(pids, durationMs) {
 	const deadline = Date.now() + durationMs;
 	while (true) {
@@ -26193,14 +26227,14 @@ function shouldPrintStdioLogs(meta) {
 if (STDIO_TRACE_ENABLED$1) {
 	console.log("[mcporter] STDIO trace logging enabled (set MCPORTER_STDIO_TRACE=0 to disable).");
 }
+function ignoreEmitterError() {}
 function destroyStream(stream) {
 	if (!stream || typeof stream !== "object") {
 		return;
 	}
 	const emitter = stream;
-	const swallowError = () => {};
 	try {
-		emitter.on?.("error", swallowError);
+		emitter.on?.("error", ignoreEmitterError);
 	} catch {}
 	try {
 		emitter.destroy?.();
@@ -26212,10 +26246,10 @@ function destroyStream(stream) {
 		emitter.unref?.();
 	} catch {}
 	try {
-		emitter.off?.("error", swallowError);
+		emitter.off?.("error", ignoreEmitterError);
 	} catch {}
 	try {
-		emitter.removeListener?.("error", swallowError);
+		emitter.removeListener?.("error", ignoreEmitterError);
 	} catch {}
 }
 function waitForChildClose(child, timeoutMs) {
@@ -26225,11 +26259,10 @@ function waitForChildClose(child, timeoutMs) {
 	if (child.exitCode !== null && child.exitCode !== undefined) {
 		return Promise.resolve();
 	}
-	return new Promise((resolve) => {
+	return new Promise((resolve, reject) => {
 		let settled = false;
-		const swallowProcessError = () => {};
 		try {
-			child.on?.("error", swallowProcessError);
+			child.on?.("error", ignoreEmitterError);
 		} catch {}
 		const finish = () => {
 			if (settled) {
@@ -26239,12 +26272,20 @@ function waitForChildClose(child, timeoutMs) {
 			cleanup();
 			resolve();
 		};
+		const timeout = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			reject(new Error(`Timed out waiting ${timeoutMs}ms for child process to close.`));
+		};
 		const cleanup = () => {
 			child.removeListener("exit", finish);
 			child.removeListener("close", finish);
 			child.removeListener("error", finish);
 			try {
-				child.removeListener?.("error", swallowProcessError);
+				child.removeListener?.("error", ignoreEmitterError);
 			} catch {}
 			if (timer) {
 				clearTimeout(timer);
@@ -26255,7 +26296,7 @@ function waitForChildClose(child, timeoutMs) {
 		child.once("error", finish);
 		let timer;
 		if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
-			timer = setTimeout(finish, timeoutMs);
+			timer = setTimeout(timeout, timeoutMs);
 			timer.unref?.();
 		}
 	});
@@ -26422,9 +26463,8 @@ function patchStdioStart() {
 					meta.stderrChunks.push(chunk.toString("utf8"));
 				}
 			};
-			const swallowError = () => {};
 			targetStream.on("data", handleChunk);
-			targetStream.on("error", swallowError);
+			targetStream.on("error", ignoreEmitterError);
 			meta.listeners.push({
 				stream: targetStream,
 				event: "data",
@@ -26433,7 +26473,7 @@ function patchStdioStart() {
 			meta.listeners.push({
 				stream: targetStream,
 				event: "error",
-				handler: swallowError
+				handler: ignoreEmitterError
 			});
 		}
 		if (STDIO_TRACE_ENABLED$1 && child?.stdout) {
@@ -26448,9 +26488,8 @@ function patchStdioStart() {
 					meta.stdoutChunks.push(chunk.toString("utf8"));
 				}
 			};
-			const swallowStdoutError = () => {};
 			stdoutStream.on("data", handleStdout);
-			stdoutStream.on("error", swallowStdoutError);
+			stdoutStream.on("error", ignoreEmitterError);
 			meta.listeners.push({
 				stream: stdoutStream,
 				event: "data",
@@ -26459,7 +26498,7 @@ function patchStdioStart() {
 			meta.listeners.push({
 				stream: stdoutStream,
 				event: "error",
-				handler: swallowStdoutError
+				handler: ignoreEmitterError
 			});
 		}
 		if (child) {
@@ -26642,7 +26681,7 @@ async function closeReplacementTransport(originalTransport, activeTransport) {
 	await activeTransport.close().catch(() => {});
 }
 async function completeAuthorizationChallenge(transport, session, logger, connectError, options) {
-	const code = await waitForAuthorizationCodeWithTimeout(session, logger, options.serverName, options.oauthTimeoutMs ?? DEFAULT_OAUTH_CODE_TIMEOUT_MS);
+	const code = await waitForAuthorizationCodeWithTimeout(session, logger, options.serverName, options.oauthTimeoutMs ?? 6e4);
 	if (typeof transport.finishAuth !== "function") {
 		logger.warn("Transport does not support finishAuth; cannot complete OAuth flow automatically.");
 		throw connectError;
@@ -34121,7 +34160,7 @@ var Protocol = class {
 			options?.signal?.addEventListener("abort", () => {
 				cancel(options?.signal?.reason);
 			});
-			const timeout = options?.timeout ?? DEFAULT_REQUEST_TIMEOUT_MSEC;
+			const timeout = options?.timeout ?? 6e4;
 			const timeoutHandler = () => cancel(McpError.fromError(ErrorCode.RequestTimeout, "Request timed out", { timeout }));
 			this._setupTimeout(messageId, timeout, options?.maxTotalTimeout, timeoutHandler, options?.resetTimeoutOnProgress ?? false);
 			const relatedTaskId = relatedTask?.taskId;
@@ -42014,41 +42053,117 @@ var ParseError = class extends Error {
 		super(message), this.name = "ParseError", this.type = options.type, this.field = options.field, this.value = options.value, this.line = options.line;
 	}
 };
+const LF = 10, CR = 13, SPACE = 32;
 function noop(_arg) {}
 function createParser(callbacks) {
 	if (typeof callbacks == "function") throw new TypeError("`callbacks` must be an object, got a function instead. Did you mean `{onEvent: fn}`?");
-	const { onEvent = noop, onError = noop, onRetry = noop, onComment } = callbacks;
-	let incompleteLine = "", isFirstChunk = !0, id, data = "", eventType = "";
-	function feed(newChunk) {
-		const chunk = isFirstChunk ? newChunk.replace(/^\xEF\xBB\xBF/, "") : newChunk, [complete, incomplete] = splitLines(`${incompleteLine}${chunk}`);
-		for (const line of complete) parseLine(line);
-		incompleteLine = incomplete, isFirstChunk = !1;
+	const { onEvent = noop, onError = noop, onRetry = noop, onComment } = callbacks, pendingFragments = [];
+	let isFirstChunk = !0, id, data = "", dataLines = 0, eventType;
+	function feed(chunk) {
+		if (isFirstChunk && (isFirstChunk = !1, chunk.charCodeAt(0) === 239 && chunk.charCodeAt(1) === 187 && chunk.charCodeAt(2) === 191 && (chunk = chunk.slice(3))), pendingFragments.length === 0) {
+			const trailing2 = processLines(chunk);
+			trailing2 !== "" && pendingFragments.push(trailing2);
+			return;
+		}
+		if (chunk.indexOf(`
+`) === -1 && chunk.indexOf("\r") === -1) {
+			pendingFragments.push(chunk);
+			return;
+		}
+		pendingFragments.push(chunk);
+		const input = pendingFragments.join("");
+		pendingFragments.length = 0;
+		const trailing = processLines(input);
+		trailing !== "" && pendingFragments.push(trailing);
 	}
-	function parseLine(line) {
-		if (line === "") {
+	function processLines(chunk) {
+		let searchIndex = 0;
+		if (chunk.indexOf("\r") === -1) {
+			let lfIndex = chunk.indexOf(`
+`, searchIndex);
+			for (; lfIndex !== -1;) {
+				if (searchIndex === lfIndex) {
+					dataLines > 0 && onEvent({
+						id,
+						event: eventType,
+						data
+					}), id = void 0, data = "", dataLines = 0, eventType = void 0, searchIndex = lfIndex + 1, lfIndex = chunk.indexOf(`
+`, searchIndex);
+					continue;
+				}
+				const firstCharCode = chunk.charCodeAt(searchIndex);
+				if (isDataPrefix(chunk, searchIndex, firstCharCode)) {
+					const valueStart = chunk.charCodeAt(searchIndex + 5) === SPACE ? searchIndex + 6 : searchIndex + 5, value = chunk.slice(valueStart, lfIndex);
+					if (dataLines === 0 && chunk.charCodeAt(lfIndex + 1) === LF) {
+						onEvent({
+							id,
+							event: eventType,
+							data: value
+						}), id = void 0, data = "", eventType = void 0, searchIndex = lfIndex + 2, lfIndex = chunk.indexOf(`
+`, searchIndex);
+						continue;
+					}
+					data = dataLines === 0 ? value : `${data}
+${value}`, dataLines++;
+				} else isEventPrefix(chunk, searchIndex, firstCharCode) ? eventType = chunk.slice(chunk.charCodeAt(searchIndex + 6) === SPACE ? searchIndex + 7 : searchIndex + 6, lfIndex) || void 0 : parseLine(chunk, searchIndex, lfIndex);
+				searchIndex = lfIndex + 1, lfIndex = chunk.indexOf(`
+`, searchIndex);
+			}
+			return chunk.slice(searchIndex);
+		}
+		for (; searchIndex < chunk.length;) {
+			const crIndex = chunk.indexOf("\r", searchIndex), lfIndex = chunk.indexOf(`
+`, searchIndex);
+			let lineEnd = -1;
+			if (crIndex !== -1 && lfIndex !== -1 ? lineEnd = crIndex < lfIndex ? crIndex : lfIndex : crIndex !== -1 ? crIndex === chunk.length - 1 ? lineEnd = -1 : lineEnd = crIndex : lfIndex !== -1 && (lineEnd = lfIndex), lineEnd === -1) break;
+			parseLine(chunk, searchIndex, lineEnd), searchIndex = lineEnd + 1, chunk.charCodeAt(searchIndex - 1) === CR && chunk.charCodeAt(searchIndex) === LF && searchIndex++;
+		}
+		return chunk.slice(searchIndex);
+	}
+	function parseLine(chunk, start, end) {
+		if (start === end) {
 			dispatchEvent();
 			return;
 		}
-		if (line.startsWith(":")) {
-			onComment && onComment(line.slice(line.startsWith(": ") ? 2 : 1));
+		const firstCharCode = chunk.charCodeAt(start);
+		if (isDataPrefix(chunk, start, firstCharCode)) {
+			const valueStart = chunk.charCodeAt(start + 5) === SPACE ? start + 6 : start + 5, value2 = chunk.slice(valueStart, end);
+			data = dataLines === 0 ? value2 : `${data}
+${value2}`, dataLines++;
 			return;
 		}
-		const fieldSeparatorIndex = line.indexOf(":");
-		if (fieldSeparatorIndex !== -1) {
-			const field = line.slice(0, fieldSeparatorIndex), offset = line[fieldSeparatorIndex + 1] === " " ? 2 : 1, value = line.slice(fieldSeparatorIndex + offset);
-			processField(field, value, line);
+		if (isEventPrefix(chunk, start, firstCharCode)) {
+			eventType = chunk.slice(chunk.charCodeAt(start + 6) === SPACE ? start + 7 : start + 6, end) || void 0;
 			return;
 		}
-		processField(line, "", line);
+		if (firstCharCode === 105 && chunk.charCodeAt(start + 1) === 100 && chunk.charCodeAt(start + 2) === 58) {
+			const value2 = chunk.slice(chunk.charCodeAt(start + 3) === SPACE ? start + 4 : start + 3, end);
+			id = value2.includes("\0") ? void 0 : value2;
+			return;
+		}
+		if (firstCharCode === 58) {
+			if (onComment) {
+				const line2 = chunk.slice(start, end);
+				onComment(line2.slice(chunk.charCodeAt(start + 1) === SPACE ? 2 : 1));
+			}
+			return;
+		}
+		const line = chunk.slice(start, end), fieldSeparatorIndex = line.indexOf(":");
+		if (fieldSeparatorIndex === -1) {
+			processField(line, "", line);
+			return;
+		}
+		const field = line.slice(0, fieldSeparatorIndex), offset = line.charCodeAt(fieldSeparatorIndex + 1) === SPACE ? 2 : 1, value = line.slice(fieldSeparatorIndex + offset);
+		processField(field, value, line);
 	}
 	function processField(field, value, line) {
 		switch (field) {
 			case "event":
-				eventType = value;
+				eventType = value || void 0;
 				break;
 			case "data":
-				data = `${data}${value}
-`;
+				data = dataLines === 0 ? value : `${data}
+${value}`, dataLines++;
 				break;
 			case "id":
 				id = value.includes("\0") ? void 0 : value;
@@ -42071,38 +42186,29 @@ function createParser(callbacks) {
 		}
 	}
 	function dispatchEvent() {
-		data.length > 0 && onEvent({
+		dataLines > 0 && onEvent({
 			id,
-			event: eventType || void 0,
-			data: data.endsWith(`
-`) ? data.slice(0, -1) : data
-		}), id = void 0, data = "", eventType = "";
+			event: eventType,
+			data
+		}), id = void 0, data = "", dataLines = 0, eventType = void 0;
 	}
 	function reset(options = {}) {
-		incompleteLine && options.consume && parseLine(incompleteLine), isFirstChunk = !0, id = void 0, data = "", eventType = "", incompleteLine = "";
+		if (options.consume && pendingFragments.length > 0) {
+			const incompleteLine = pendingFragments.join("");
+			parseLine(incompleteLine, 0, incompleteLine.length);
+		}
+		isFirstChunk = !0, id = void 0, data = "", dataLines = 0, eventType = void 0, pendingFragments.length = 0;
 	}
 	return {
 		feed,
 		reset
 	};
 }
-function splitLines(chunk) {
-	const lines = [];
-	let incompleteLine = "", searchIndex = 0;
-	for (; searchIndex < chunk.length;) {
-		const crIndex = chunk.indexOf("\r", searchIndex), lfIndex = chunk.indexOf(`
-`, searchIndex);
-		let lineEnd = -1;
-		if (crIndex !== -1 && lfIndex !== -1 ? lineEnd = Math.min(crIndex, lfIndex) : crIndex !== -1 ? crIndex === chunk.length - 1 ? lineEnd = -1 : lineEnd = crIndex : lfIndex !== -1 && (lineEnd = lfIndex), lineEnd === -1) {
-			incompleteLine = chunk.slice(searchIndex);
-			break;
-		} else {
-			const line = chunk.slice(searchIndex, lineEnd);
-			lines.push(line), searchIndex = lineEnd + 1, chunk[searchIndex - 1] === "\r" && chunk[searchIndex] === `
-` && searchIndex++;
-		}
-	}
-	return [lines, incompleteLine];
+function isDataPrefix(chunk, i, firstCharCode) {
+	return firstCharCode === 100 && chunk.charCodeAt(i + 1) === 97 && chunk.charCodeAt(i + 2) === 116 && chunk.charCodeAt(i + 3) === 97 && chunk.charCodeAt(i + 4) === 58;
+}
+function isEventPrefix(chunk, i, firstCharCode) {
+	return firstCharCode === 101 && chunk.charCodeAt(i + 1) === 118 && chunk.charCodeAt(i + 2) === 101 && chunk.charCodeAt(i + 3) === 110 && chunk.charCodeAt(i + 4) === 116 && chunk.charCodeAt(i + 5) === 58;
 }
 
 //#endregion
@@ -43388,13 +43494,13 @@ function openExternal(url, platform = process.platform, launch = node_child_proc
 			child.unref();
 		} else if (platform === "win32") {
 			const child = launch("cmd", [
+				"/s",
 				"/c",
-				"start",
-				"\"\"",
-				url
+				`start "" "${url}"`
 			], {
 				stdio,
-				detached: true
+				detached: true,
+				windowsVerbatimArguments: true
 			});
 			child.unref();
 		} else {
@@ -43635,7 +43741,7 @@ function materializeHeaders(headers, serverName) {
 			resolved[key] = resolveEnvPlaceholders(value);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Failed to resolve header '${key}' for server '${serverName}': ${message}`);
+			throw new Error(`Failed to resolve header '${key}' for server '${serverName}': ${message}`, { cause: error });
 		}
 	}
 	return resolved;
@@ -43927,6 +44033,29 @@ async function createClientContext(definition, logger, clientInfo, options = {})
 }
 
 //#endregion
+//#region ../../../../.npm/_npx/bdbf2deecdd22bc5/node_modules/mcporter/dist/tool-filters.js
+function validateToolFilters(name, filter) {
+	if (filter.allowedTools !== undefined && filter.blockedTools !== undefined) {
+		throw new Error(`Server '${name}' cannot specify both allowedTools and blockedTools.`);
+	}
+}
+function isToolAllowed(toolName, filter) {
+	if (!filter) {
+		return true;
+	}
+	if (filter.allowedTools !== undefined) {
+		return filter.allowedTools.includes(toolName);
+	}
+	if (filter.blockedTools !== undefined) {
+		return !filter.blockedTools.includes(toolName);
+	}
+	return true;
+}
+function filterTools(tools, filter) {
+	return tools.filter((tool) => isToolAllowed(tool.name, filter));
+}
+
+//#endregion
 //#region ../../../../.npm/_npx/bdbf2deecdd22bc5/node_modules/mcporter/dist/runtime.js
 const PACKAGE_NAME = "mcporter";
 const CLIENT_VERSION = (() => {
@@ -43961,6 +44090,9 @@ var McpRuntime = class {
 	clientInfo;
 	oauthTimeoutMs;
 	constructor(servers, options = {}) {
+		for (const server of servers) {
+			validateToolFilters(server.name, server);
+		}
 		this.definitions = new Map(servers.map((entry) => [entry.name, entry]));
 		this.logger = options.logger ?? createConsoleLogger();
 		this.clientInfo = options.clientInfo ?? {
@@ -43970,7 +44102,7 @@ var McpRuntime = class {
 		this.oauthTimeoutMs = options.oauthTimeoutMs;
 	}
 	listServers() {
-		return [...this.definitions.keys()].sort((a, b) => a.localeCompare(b));
+		return [...this.definitions.keys()].toSorted((a, b) => a.localeCompare(b));
 	}
 	getDefinitions() {
 		return [...this.definitions.values()];
@@ -43983,6 +44115,7 @@ var McpRuntime = class {
 		return definition;
 	}
 	registerDefinition(definition, options = {}) {
+		validateToolFilters(definition.name, definition);
 		if (!options.overwrite && this.definitions.has(definition.name)) {
 			throw new Error(`MCP server '${definition.name}' already exists.`);
 		}
@@ -44009,7 +44142,7 @@ var McpRuntime = class {
 				})));
 				cursor = response.nextCursor ?? undefined;
 			} while (cursor);
-			return tools;
+			return filterTools(tools, this.definitions.get(server.trim()));
 		} catch (error) {
 			await this.resetConnectionOnError(server, error);
 			throw error;
@@ -44022,6 +44155,10 @@ var McpRuntime = class {
 		}
 	}
 	async callTool(server, toolName, options = {}) {
+		const definition = this.definitions.get(server.trim());
+		if (definition && !isToolAllowed(toolName, definition)) {
+			throw new Error(`Tool '${toolName}' is not accessible on server '${definition.name}' (blocked by configuration).`);
+		}
 		try {
 			const { client } = await this.connect(server);
 			const params = {
@@ -44369,11 +44506,11 @@ function createServerProxy(runtime, serverName, mapOrOptions, maybeOptions) {
 		return writeSchemaCache(definition, snapshot).catch(() => {});
 	}
 	const base = {
-		call: async (toolName, options) => {
-			const result = await runtime.callTool(serverName, toolName, options ?? {});
+		call: async (toolName, callOptions) => {
+			const result = await runtime.callTool(serverName, toolName, callOptions ?? {});
 			return createCallResult(result);
 		},
-		listTools: (options) => runtime.listTools(serverName, options)
+		listTools: (listOptions) => runtime.listTools(serverName, listOptions)
 	};
 	return new Proxy(base, { get(target, property, receiver) {
 		if (Reflect.has(target, property)) {
@@ -44495,11 +44632,9 @@ const embeddedSchemas = {
 	"search_apps": {
 		"type": "object",
 		"properties": { "queries": {
-			"minItems": 1,
 			"type": "array",
 			"items": { "type": "string" }
 		} },
-		"required": ["queries"],
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	},
 	"search_components": {
@@ -44519,7 +44654,7 @@ const embeddedSchemas = {
 		"required": ["queries"],
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	},
-	"bulk_get_components": {
+	"get_components": {
 		"type": "object",
 		"properties": {
 			"apps": {
@@ -44534,41 +44669,21 @@ const embeddedSchemas = {
 					"trigger",
 					"source"
 				]
-			}
-		},
-		"required": ["apps"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"get_app_components": {
-		"type": "object",
-		"properties": {
-			"app": { "type": "string" },
+			},
 			"q": { "type": "string" },
 			"limit": {
 				"type": "integer",
 				"exclusiveMinimum": 0,
 				"maximum": 9007199254740991
-			},
-			"componentType": {
-				"type": "string",
-				"enum": [
-					"action",
-					"trigger",
-					"source"
-				]
 			}
 		},
+		"required": ["apps"],
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	},
 	"get_component_definition": {
 		"type": "object",
 		"properties": { "key": { "type": "string" } },
 		"required": ["key"],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"get_accounts": {
-		"type": "object",
-		"properties": { "app": { "type": "string" } },
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	},
 	"direct_execute_action": {
@@ -44656,10 +44771,6 @@ const embeddedSchemas = {
 				"type": "string",
 				"description": "The field name to fetch options for (e.g. channel)"
 			},
-			"accountId": {
-				"type": "string",
-				"description": "The auth provision ID for the connected account"
-			},
 			"currentConfiguration": {
 				"type": "object",
 				"propertyNames": { "type": "string" },
@@ -44670,36 +44781,7 @@ const embeddedSchemas = {
 				"type": "string"
 			}
 		},
-		"required": [
-			"componentKey",
-			"fieldName",
-			"accountId"
-		],
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"user_secrets_get_status": {
-		"type": "object",
-		"properties": { "provider": {
-			"description": "Optional provider ID (e.g. 'github'). If omitted, returns status for all supported providers.",
-			"type": "string"
-		} },
-		"$schema": "http://json-schema.org/draft-07/schema#"
-	},
-	"user_secrets_upsert": {
-		"type": "object",
-		"properties": {
-			"provider": {
-				"type": "string",
-				"description": "Provider ID (e.g. 'github'). Must be one of the supported providers."
-			},
-			"secrets": {
-				"type": "object",
-				"propertyNames": { "type": "string" },
-				"additionalProperties": { "type": "string" },
-				"description": "Key/value pairs of secrets for this provider. Must include all required keys for the provider."
-			}
-		},
-		"required": ["provider", "secrets"],
+		"required": ["componentKey", "fieldName"],
 		"$schema": "http://json-schema.org/draft-07/schema#"
 	}
 };
@@ -44709,9 +44791,9 @@ const generatorInfo = "Generated by backend@1.0.0 — https://github.com/steipet
 const generatorTools = [
 	{
 		"name": "search-apps",
-		"description": "Search the app catalog by natural-language queries. Use this to discover which apps are available before looking up their components. Accepts multiple queries at once to batch lookups. Returns app name, slug, description, and authStatus for each match. authStatus indicates whether the user has connected accounts (OAuth) or configured secrets for the app, so you do NOT need to call get_accounts or user_secrets_get_status separately. For OAuth apps, authStatus.accounts includes authProvisionId which you can use directly when executing actions. Example queries: ['send email', 'CRM tools', 'google sheets'].",
-		"usage": "search-apps --queries <queries:value1,value2> [--raw <json>]",
-		"flags": "--queries <queries:value1,value2> [--raw <json>]"
+		"description": "Find apps in the catalog. Call with NO queries to list all apps the user has connected — this is the answer to 'what apps does the user have connected?'. Call with queries to search the catalog; each returned app includes isConnected and connectionStatus for the user. Never returns the full 3000-app catalog.",
+		"usage": "search-apps [--queries <queries:value1,value2>] [--raw <json>]",
+		"flags": "[--queries <queries:value1,value2>] [--raw <json>]"
 	},
 	{
 		"name": "search-components",
@@ -44720,32 +44802,20 @@ const generatorTools = [
 		"flags": "--queries <queries:value1,value2> [--raw <json>]"
 	},
 	{
-		"name": "bulk-get-components",
-		"description": "List all available components (actions, triggers, sources) for multiple apps in a single request. Use this when you already know the app slugs and need a full inventory across several apps. Prefer this over get_app_components when querying more than one app. Optionally filter by componentType. Returns each app with its full list of components including key, name, type, and description.",
-		"usage": "bulk-get-components --apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--raw <json>]",
-		"flags": "--apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--raw <json>]"
-	},
-	{
-		"name": "get-app-components",
-		"description": "List components for a single app with optional text search, type filtering, and result limit. Use this when exploring one app's capabilities or when you need to narrow results by keyword or component type (action, trigger, source). For querying multiple apps at once, prefer bulk_get_components. Returns a summary of each component: name, description, componentType, version, and key.",
-		"usage": "get-app-components [--app <app>] [--q <q>] [--limit <limit:number>] [--component-type <component-type:action|trigger|source>] [--raw <json>]",
-		"flags": "[--app <app>] [--q <q>] [--limit <limit:number>] [--component-type <component-type:action|trigger|source>] [--raw <json>]"
+		"name": "get-components",
+		"description": "List components (actions, triggers, sources) for one or more apps. Pass a single app to optionally filter by keyword (q) and limit; pass multiple apps for a bulk inventory (q and limit are ignored in that mode). Returns a summary per component: key, name, componentType, description, version. Use get_component_definition next to fetch the full input schema for a specific key.",
+		"usage": "get-components --apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--q <q>] [--limit <limit:number>] [--raw <json>]",
+		"flags": "--apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--q <q>] [--limit <limit:number>] [--raw <json>]"
 	},
 	{
 		"name": "get-component-definition",
-		"description": "Get the full definition for a specific component by its key, including input props, configuration schema, and metadata. The key is typically in the format 'app_slug-component-name' (e.g. 'google_sheets-add-single-row'). Use this after finding a component via search_components, get_app_components, or bulk_get_components to understand what inputs it requires before execution. You do NOT need to call get_accounts separately — search_apps already returns authStatus with connected accounts and authProvisionId values for OAuth apps, and secret readiness for Canvas apps. When executing, auth/app props must be passed as an object with authProvisionId as the key, not as a raw token string. Example: { \"slack\": { \"authProvisionId\": \"apn_xxxx..\" } }.",
+		"description": "Get the full definition for a specific component by its key, including input props, configuration schema, and metadata. The key is typically in the format 'app_slug-component-name' (e.g. 'google_sheets-add-single-row'). Use this after finding a component via search_components or get_components to understand what inputs it requires before execution. You do NOT need to pass auth/account fields when executing — direct_execute_action resolves the user's connected account server-side. configuredProps should contain only the action's own input fields.",
 		"usage": "get-component-definition --key <key> [--raw <json>]",
 		"flags": "--key <key> [--raw <json>]"
 	},
 	{
-		"name": "get-accounts",
-		"description": "Fetch the authenticated user's connected accounts. Optionally filter by app slug (e.g. 'google_sheets'). NOTE: In most flows you do NOT need this — search_apps already returns authStatus with connected accounts and authProvisionId values. Use get_accounts only when you need to refresh account state mid-flow or list accounts without a prior search_apps call. Returns a list of account objects. When passing the account to a component for execution, use the format { \"app_slug\": { \"authProvisionId\": \"apn_xxxx..\" } }.",
-		"usage": "get-accounts [--app <app>] [--raw <json>]",
-		"flags": "[--app <app>] [--raw <json>]"
-	},
-	{
 		"name": "direct-execute-action",
-		"description": "Execute an action directly using the authenticated user's account. Before calling this, you MUST: 1. Use search_apps to find the app — authStatus tells you    if the user is ready (has accounts or secrets configured).    For OAuth apps, use the authProvisionId from    authStatus.accounts directly. 2. Use get_component_definition to retrieve the component's    input props and configuration schema. Auth/app props must be passed as { \"app_slug\": { \"authProvisionId\": \"<token>\" } }, not as a raw token string. Canvas action keys (e.g. fireflies-*, github-*, twitter-*) are routed automatically to the Canvas executor — no authProvisionId needed for those. configuredProps should match the schema from get_component_definition. Use dynamicPropsId only if the component definition indicates dynamic props are required.",
+		"description": "Execute an action on behalf of the authenticated user. Before calling: use search_apps to verify the user is connected (isConnected=true), then get_component_definition to get the input schema. configuredProps carries ONLY the action's input fields — no authProvisionId, no accountId. Auth is resolved server-side from the user's connected accounts. If the user is not connected, this returns CONNECTION_NOT_CONNECTED — tell them to connect the app in Settings → Integrations. Use dynamicPropsId only if the component definition indicates dynamic props are required.",
 		"usage": "direct-execute-action --component-key <component-key> --configured-props <configured-props:json> [--dynamic-props-id <dynamic-props-id>] [--raw <json>]",
 		"flags": "--component-key <component-key> --configured-props <configured-props:json> [--dynamic-props-id <dynamic-props-id>] [--raw <json>]"
 	},
@@ -44763,26 +44833,14 @@ const generatorTools = [
 	},
 	{
 		"name": "fetch-remote-options",
-		"description": "Fetch remote options for a dropdown field from Pipedream. Use this to get dynamic options for fields that have remoteOptions enabled, such as channels, workspaces, or other dependent dropdowns. The accountId must be a connected account for the target app. Optionally provide a searchQuery to fuzzy search the options and return the best match instead of the full options list. NOTE: Currently only fetches page 0 (first page of results).",
-		"usage": "fetch-remote-options --component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]",
-		"flags": "--component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]"
-	},
-	{
-		"name": "user-secrets-get-status",
-		"description": "Check which providers have secrets configured for the current user. If a provider is configured, all of its required keys are present and non-empty. NOTE: In most flows you do NOT need this — search_apps already returns authStatus with isReady and missingKeys for Canvas apps. Use this only when you need detailed provider diagnostics or to check secrets without a prior search_apps call.",
-		"usage": "user-secrets-get-status [--provider <provider>] [--raw <json>]",
-		"flags": "[--provider <provider>] [--raw <json>]"
-	},
-	{
-		"name": "user-secrets-upsert",
-		"description": "Create or replace secrets for a provider for the current user. Secrets are encrypted and stored server-side; this tool never returns plain-text secret values. If secrets already exist for the provider, they are replaced. Required keys for each provider are defined in the backend registry; missing required keys will result in a validation error.",
-		"usage": "user-secrets-upsert --provider <provider> --secrets <secrets:json> [--raw <json>]",
-		"flags": "--provider <provider> --secrets <secrets:json> [--raw <json>]"
+		"description": "Fetch remote options for a dropdown field (e.g. Slack channels, ClickUp spaces, GitHub repos). Supports an optional fuzzy search for best-match resolution. Auth is resolved server-side from the user's connected accounts — no account ID required. NOTE: Currently only fetches page 0 (first page of results).",
+		"usage": "fetch-remote-options --component-key <component-key> --field-name <field-name> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]",
+		"flags": "--component-key <component-key> --field-name <field-name> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]"
 	}
 ];
 const embeddedMetadata = {
 	"schemaVersion": 1,
-	"generatedAt": "2026-04-16T08:08:13.736Z",
+	"generatedAt": "2026-04-21T11:37:43.136Z",
 	"generator": {
 		"name": "backend",
 		"version": "1.0.0"
@@ -44828,25 +44886,21 @@ program.description(embeddedDescription);
 program.option("-t, --timeout <ms>", "Call timeout in milliseconds", (value) => parseInt(value, 10), 3e4);
 program.option("-o, --output <format>", "Output format: text|markdown|json|raw", "text");
 const commandSignatures = {
-	"search-apps": "function search_apps(queries: string[]): object;",
+	"search-apps": "function search_apps(queries?: string[]): object;",
 	"search-components": "function search_components(queries: string[]): object;",
-	"bulk-get-components": "function bulk_get_components(apps: string[], componentType?: \"action\" | \"trigger\" | \"source\"): object;",
-	"get-app-components": "function get_app_components(app?: string, q?: string, limit?: number, componentType?: \"action\" | \"trigger\" | \"source\");",
+	"get-components": "function get_components(apps: string[], componentType?: \"action\" | \"trigger\" | \"source\", q?: string, limit?: number);",
 	"get-component-definition": "function get_component_definition(key: string);",
-	"get-accounts": "function get_accounts(app?: string);",
 	"direct-execute-action": "function direct_execute_action(componentKey: string, configuredProps: Record<string, unknown>, dynamicPropsId?: string);",
 	"direct-execute-web-search": "function direct_execute_web_search(query: string, limit?: number, sources?: \"web\" | \"news\" | \"images\");",
 	"direct-execute-web-scrape": "function direct_execute_web_scrape(url: string, formats?: \"markdown\" | \"html\" | \"rawHtml\" | \"links\" | \"images\" | \"screenshot\" | \"summary\" | \"json\", onlyMainContent?: boolean, timeout?: number, platform?: \"linkedin\" | \"instagram\" | \"reddit\" | \"general\" | \"auto\");",
-	"fetch-remote-options": "function fetch_remote_options(componentKey: string, fieldName: string, accountId: string, currentConfiguration?: Record<string, unknown>, searchQuery?: string);",
-	"user-secrets-get-status": "function user_secrets_get_status(provider?: string);",
-	"user-secrets-upsert": "function user_secrets_upsert(provider: string, secrets: Record<string, unknown>);"
+	"fetch-remote-options": "function fetch_remote_options(componentKey: string, fieldName: string, currentConfiguration?: Record<string, unknown>, searchQuery?: string);"
 };
 program.configureHelp({ commandTerm(cmd) {
 	const term = cmd.name();
 	return commandSignatures[term] ?? cmd.name();
 } });
 program.showSuggestionAfterError(true);
-program.command("search-apps").summary("search-apps --queries <queries:value1,value2> [--raw <json>]").description("Search the app catalog by natural-language queries. Use this to discover which apps are available before looking up their components. Accepts multiple queries at once to batch lookups. Returns app name, slug, description, and authStatus for each match. authStatus indicates whether the user has connected accounts (OAuth) or configured secrets for the app, so you do NOT need to call get_accounts or user_secrets_get_status separately. For OAuth apps, authStatus.accounts includes authProvisionId which you can use directly when executing actions. Example queries: ['send email', 'CRM tools', 'google sheets'].").usage("--queries <queries:value1,value2> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--queries <queries:value1,value2>", "Set queries. (example: value1,value2)", (value) => value.split(",").map((v) => v.trim())).alias("search_apps").action(async (cmdOpts) => {
+program.command("search-apps").summary("search-apps [--queries <queries:value1,value2>] [--raw <json>]").description("Find apps in the catalog. Call with NO queries to list all apps the user has connected — this is the answer to 'what apps does the user have connected?'. Call with queries to search the catalog; each returned app includes isConnected and connectionStatus for the user. Never returns the full 3000-app catalog.").usage("[--queries <queries:value1,value2>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--queries <queries:value1,value2>", "Set queries. (example: value1,value2)", (value) => value.split(",").map((v) => v.trim())).alias("search_apps").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
 	const serverName = embeddedName;
@@ -44876,7 +44930,7 @@ program.command("search-components").summary("search-components --queries <queri
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.search_components(queries: [\"value1\", \"value2\"])");
-program.command("bulk-get-components").summary("bulk-get-components --apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--raw <json>]").description("List all available components (actions, triggers, sources) for multiple apps in a single request. Use this when you already know the app slugs and need a full inventory across several apps. Prefer this over get_app_components when querying more than one app. Optionally filter by componentType. Returns each app with its full list of components including key, name, type, and description.").usage("--apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--apps <apps:value1,value2>", "Set apps. (example: value1,value2)", (value) => value.split(",").map((v) => v.trim())).option("--component-type <component-type:action|trigger|source>", "Set componentType. (choices: action, trigger, source; example: action)").alias("bulk_get_components").action(async (cmdOpts) => {
+program.command("get-components").summary("get-components --apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--q <q>] [--limit <limit:number>] [--raw <json>]").description("List components (actions, triggers, sources) for one or more apps. Pass a single app to optionally filter by keyword (q) and limit; pass multiple apps for a bulk inventory (q and limit are ignored in that mode). Returns a summary per component: key, name, componentType, description, version. Use get_component_definition next to fetch the full input schema for a specific key.").usage("--apps <apps:value1,value2> [--component-type <component-type:action|trigger|source>] [--q <q>] [--limit <limit:number>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--apps <apps:value1,value2>", "Set apps. (example: value1,value2)", (value) => value.split(",").map((v) => v.trim())).option("--component-type <component-type:action|trigger|source>", "Set componentType. (choices: action, trigger, source; example: action)").option("--q <q>", "Set q.").option("--limit <limit:number>", "Set limit. (example: 1)", (value) => parseFloat(value)).alias("get_components").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
 	const serverName = embeddedName;
@@ -44885,32 +44939,16 @@ program.command("bulk-get-components").summary("bulk-get-components --apps <apps
 		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
 		if (cmdOpts.apps !== undefined) args.apps = cmdOpts.apps;
 		if (cmdOpts.componentType !== undefined) args.componentType = cmdOpts.componentType;
-		const call = proxy.bulkGetComponents(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.bulk_get_components(apps: [\"value1\", \"value2\"], c, ...)");
-program.command("get-app-components").summary("get-app-components [--app <app>] [--q <q>] [--limit <limit:number>] [--component-type <component-type:action|trigger|source>] [--raw <json>]").description("List components for a single app with optional text search, type filtering, and result limit. Use this when exploring one app's capabilities or when you need to narrow results by keyword or component type (action, trigger, source). For querying multiple apps at once, prefer bulk_get_components. Returns a summary of each component: name, description, componentType, version, and key.").usage("[--app <app>] [--q <q>] [--limit <limit:number>] [--component-type <component-type:action|trigger|source>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--app <app>", "Set app.").option("--q <q>", "Set q.").option("--limit <limit:number>", "Set limit. (example: 1)", (value) => parseFloat(value)).option("--component-type <component-type:action|trigger|source>", "Set componentType. (choices: action, trigger, source; example: action)").alias("get_app_components").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.app !== undefined) args.app = cmdOpts.app;
 		if (cmdOpts.q !== undefined) args.q = cmdOpts.q;
 		if (cmdOpts.limit !== undefined) args.limit = cmdOpts.limit;
-		if (cmdOpts.componentType !== undefined) args.componentType = cmdOpts.componentType;
-		const call = proxy.getAppComponents(args);
+		const call = proxy.getComponents(args);
 		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
 		printResult(result, globalOptions.output ?? "text");
 	} finally {
 		await runtime.close(serverName).catch(() => {});
 	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.get_app_components(limit: 1, componentType: \"action\")");
-program.command("get-component-definition").summary("get-component-definition --key <key> [--raw <json>]").description("Get the full definition for a specific component by its key, including input props, configuration schema, and metadata. The key is typically in the format 'app_slug-component-name' (e.g. 'google_sheets-add-single-row'). Use this after finding a component via search_components, get_app_components, or bulk_get_components to understand what inputs it requires before execution. You do NOT need to call get_accounts separately — search_apps already returns authStatus with connected accounts and authProvisionId values for OAuth apps, and secret readiness for Canvas apps. When executing, auth/app props must be passed as an object with authProvisionId as the key, not as a raw token string. Example: { \"slack\": { \"authProvisionId\": \"apn_xxxx..\" } }.").usage("--key <key> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--key <key>", "Set key.").alias("get_component_definition").action(async (cmdOpts) => {
+}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.get_components(apps: [\"value1\", \"value2\"], compon, ...)");
+program.command("get-component-definition").summary("get-component-definition --key <key> [--raw <json>]").description("Get the full definition for a specific component by its key, including input props, configuration schema, and metadata. The key is typically in the format 'app_slug-component-name' (e.g. 'google_sheets-add-single-row'). Use this after finding a component via search_components or get_components to understand what inputs it requires before execution. You do NOT need to pass auth/account fields when executing — direct_execute_action resolves the user's connected account server-side. configuredProps should contain only the action's own input fields.").usage("--key <key> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--key <key>", "Set key.").alias("get_component_definition").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
 	const serverName = embeddedName;
@@ -44925,22 +44963,7 @@ program.command("get-component-definition").summary("get-component-definition --
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.get_component_definition(key: \"value\")");
-program.command("get-accounts").summary("get-accounts [--app <app>] [--raw <json>]").description("Fetch the authenticated user's connected accounts. Optionally filter by app slug (e.g. 'google_sheets'). NOTE: In most flows you do NOT need this — search_apps already returns authStatus with connected accounts and authProvisionId values. Use get_accounts only when you need to refresh account state mid-flow or list accounts without a prior search_apps call. Returns a list of account objects. When passing the account to a component for execution, use the format { \"app_slug\": { \"authProvisionId\": \"apn_xxxx..\" } }.").usage("[--app <app>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--app <app>", "Set app.").alias("get_accounts").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.app !== undefined) args.app = cmdOpts.app;
-		const call = proxy.getAccounts(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.get_accounts()");
-program.command("direct-execute-action").summary("direct-execute-action --component-key <component-key> --configured-props <configured-props:json> [--dynamic-props-id <dynamic-props-id>] [--raw <json>]").description("Execute an action directly using the authenticated user's account. Before calling this, you MUST: 1. Use search_apps to find the app — authStatus tells you    if the user is ready (has accounts or secrets configured).    For OAuth apps, use the authProvisionId from    authStatus.accounts directly. 2. Use get_component_definition to retrieve the component's    input props and configuration schema. Auth/app props must be passed as { \"app_slug\": { \"authProvisionId\": \"<token>\" } }, not as a raw token string. Canvas action keys (e.g. fireflies-*, github-*, twitter-*) are routed automatically to the Canvas executor — no authProvisionId needed for those. configuredProps should match the schema from get_component_definition. Use dynamicPropsId only if the component definition indicates dynamic props are required.").usage("--component-key <component-key> --configured-props <configured-props:json> [--dynamic-props-id <dynamic-props-id>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--component-key <component-key>", "Set componentKey.").option("--configured-props <configured-props:json>", "Set configuredProps. (example: {\"key\":\"value\"})", (value) => JSON.parse(value)).option("--dynamic-props-id <dynamic-props-id>", "Set dynamicPropsId. (example: example-id)").alias("direct_execute_action").action(async (cmdOpts) => {
+program.command("direct-execute-action").summary("direct-execute-action --component-key <component-key> --configured-props <configured-props:json> [--dynamic-props-id <dynamic-props-id>] [--raw <json>]").description("Execute an action on behalf of the authenticated user. Before calling: use search_apps to verify the user is connected (isConnected=true), then get_component_definition to get the input schema. configuredProps carries ONLY the action's input fields — no authProvisionId, no accountId. Auth is resolved server-side from the user's connected accounts. If the user is not connected, this returns CONNECTION_NOT_CONNECTED — tell them to connect the app in Settings → Integrations. Use dynamicPropsId only if the component definition indicates dynamic props are required.").usage("--component-key <component-key> --configured-props <configured-props:json> [--dynamic-props-id <dynamic-props-id>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--component-key <component-key>", "Set componentKey.").option("--configured-props <configured-props:json>", "Set configuredProps. (example: {\"key\":\"value\"})", (value) => JSON.parse(value)).option("--dynamic-props-id <dynamic-props-id>", "Set dynamicPropsId. (example: example-id)").alias("direct_execute_action").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
 	const serverName = embeddedName;
@@ -44997,7 +45020,7 @@ program.command("direct-execute-web-scrape").summary("direct-execute-web-scrape 
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.direct_execute_web_scrape(url: \"https://example.c, ...)");
-program.command("fetch-remote-options").summary("fetch-remote-options --component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]").description("Fetch remote options for a dropdown field from Pipedream. Use this to get dynamic options for fields that have remoteOptions enabled, such as channels, workspaces, or other dependent dropdowns. The accountId must be a connected account for the target app. Optionally provide a searchQuery to fuzzy search the options and return the best match instead of the full options list. NOTE: Currently only fetches page 0 (first page of results).").usage("--component-key <component-key> --field-name <field-name> --account-id <account-id> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--component-key <component-key>", "The component key (e.g. slack-send-message)").option("--field-name <field-name>", "The field name to fetch options for (e.g. channel)").option("--account-id <account-id>", "The auth provision ID for the connected account (example: example-id)").option("--current-configuration <current-configuration:json>", "Set currentConfiguration. (example: {\"key\":\"value\"})", (value) => JSON.parse(value)).option("--search-query <search-query>", "Optional search query for fuzzy matching").alias("fetch_remote_options").action(async (cmdOpts) => {
+program.command("fetch-remote-options").summary("fetch-remote-options --component-key <component-key> --field-name <field-name> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]").description("Fetch remote options for a dropdown field (e.g. Slack channels, ClickUp spaces, GitHub repos). Supports an optional fuzzy search for best-match resolution. Auth is resolved server-side from the user's connected accounts — no account ID required. NOTE: Currently only fetches page 0 (first page of results).").usage("--component-key <component-key> --field-name <field-name> [--current-configuration <current-configuration:json>] [--search-query <search-query>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--component-key <component-key>", "The component key (e.g. slack-send-message)").option("--field-name <field-name>", "The field name to fetch options for (e.g. channel)").option("--current-configuration <current-configuration:json>", "Set currentConfiguration. (example: {\"key\":\"value\"})", (value) => JSON.parse(value)).option("--search-query <search-query>", "Optional search query for fuzzy matching").alias("fetch_remote_options").action(async (cmdOpts) => {
 	const globalOptions = program.opts();
 	const runtime = await ensureRuntime();
 	const serverName = embeddedName;
@@ -45006,7 +45029,6 @@ program.command("fetch-remote-options").summary("fetch-remote-options --componen
 		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
 		if (cmdOpts.componentKey !== undefined) args.componentKey = cmdOpts.componentKey;
 		if (cmdOpts.fieldName !== undefined) args.fieldName = cmdOpts.fieldName;
-		if (cmdOpts.accountId !== undefined) args.accountId = cmdOpts.accountId;
 		if (cmdOpts.currentConfiguration !== undefined) args.currentConfiguration = cmdOpts.currentConfiguration;
 		if (cmdOpts.searchQuery !== undefined) args.searchQuery = cmdOpts.searchQuery;
 		const call = proxy.fetchRemoteOptions(args);
@@ -45016,37 +45038,6 @@ program.command("fetch-remote-options").summary("fetch-remote-options --componen
 		await runtime.close(serverName).catch(() => {});
 	}
 }).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.fetch_remote_options(componentKey: \"value\", field, ...)");
-program.command("user-secrets-get-status").summary("user-secrets-get-status [--provider <provider>] [--raw <json>]").description("Check which providers have secrets configured for the current user. If a provider is configured, all of its required keys are present and non-empty. NOTE: In most flows you do NOT need this — search_apps already returns authStatus with isReady and missingKeys for Canvas apps. Use this only when you need detailed provider diagnostics or to check secrets without a prior search_apps call.").usage("[--provider <provider>] [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--provider <provider>", "Optional provider ID (e.g. 'github'). If omitted, returns status for all supported providers. (example: example-id)").alias("user_secrets_get_status").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.provider !== undefined) args.provider = cmdOpts.provider;
-		const call = proxy.userSecretsGetStatus(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.user_secrets_get_status(provider: \"example-id\")");
-program.command("user-secrets-upsert").summary("user-secrets-upsert --provider <provider> --secrets <secrets:json> [--raw <json>]").description("Create or replace secrets for a provider for the current user. Secrets are encrypted and stored server-side; this tool never returns plain-text secret values. If secrets already exist for the provider, they are replaced. Required keys for each provider are defined in the backend registry; missing required keys will result in a validation error.").usage("--provider <provider> --secrets <secrets:json> [--raw <json>]").option("--raw <json>", "Provide raw JSON arguments to the tool, bypassing flag parsing.").option("--provider <provider>", "Provider ID (e.g. 'github'). Must be one of the supported providers. (example: example-id)").option("--secrets <secrets:json>", "Key/value pairs of secrets for this provider. Must include all required keys for the provider. (example: {\"key\":\"value\"})", (value) => JSON.parse(value)).alias("user_secrets_upsert").action(async (cmdOpts) => {
-	const globalOptions = program.opts();
-	const runtime = await ensureRuntime();
-	const serverName = embeddedName;
-	const proxy = createServerProxy(runtime, serverName, { initialSchemas: embeddedSchemas });
-	try {
-		const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : {};
-		if (cmdOpts.provider !== undefined) args.provider = cmdOpts.provider;
-		if (cmdOpts.secrets !== undefined) args.secrets = cmdOpts.secrets;
-		const call = proxy.userSecretsUpsert(args);
-		const result = await invokeWithTimeout(call, globalOptions.timeout || 3e4);
-		printResult(result, globalOptions.output ?? "text");
-	} finally {
-		await runtime.close(serverName).catch(() => {});
-	}
-}).addHelpText("after", () => "\nExample:\n  " + "mcporter call canvas-mcp.user_secrets_upsert(provider: \"example-id\", secre, ...)");
 program.command("__mcporter_inspect", { hidden: true }).description("Internal metadata printer for mcporter inspect-cli.").action(() => {
 	const payload = buildMetadataPayload();
 	console.log(JSON.stringify(payload, null, 2));
