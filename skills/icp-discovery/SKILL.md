@@ -13,6 +13,19 @@ description: >
 
 # ICP Discovery & Market Validation
 
+## Brand context
+
+At the start of every session, when the ICP discovery is for **our own product** (most common case):
+
+1. Read `~/.claude/skills/identity/SKILL-CONTEXT.md` for company name, one-liner, audience, and flagship products. If that file is empty, invoke the `identity` skill to bootstrap it from the user's email domain before proceeding.
+2. Read `~/.claude/skills/voice-and-tone/SKILL-CONTEXT.md` if it exists, for any positioning cues in Long-form samples.
+
+Then skip "tell me about your product" — confirm with the user once ("I've got us down as: <one-liner>. Still accurate, or has positioning shifted?") and move on to pricing + ICP dimensions.
+
+When the ICP discovery is for a user's client, partner, or competitor, ignore these files — they're not us.
+
+If both files are empty and the user hasn't set up identity yet, fall back to the conversational discovery below.
+
 ## What this skill does
 
 This skill helps Claude have a natural, structured conversation to uncover who a user's ideal customer is, then validates and quantifies that profile using two tools: **web scraping** and the **Apollo People Search API**. Web scraping serves two distinct purposes here: (1) researching competitors _before_ the Apollo search to build a smarter ICP, and (2) enriching the sample contacts _after_ the Apollo search to understand who these people actually are and what their companies do. Apollo sizes and samples the market. The goal is a well-targeted ICP in the 1,000–10,000 range — and a clear picture of what those people's worlds look like.
