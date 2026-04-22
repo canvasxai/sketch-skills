@@ -1,23 +1,77 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
     "canvas": {
       "name": "Canvas",
       "description": "App integrations, automation, web search/scrape, API calls via Canvas AI",
       "version": "1.0.0",
-      "path": "skills/canvas"
+      "path": "skills/canvas",
+      "sync": {
+        "managedPaths": ["SKILL.md", "canvas-cli.js"]
+      }
     },
     "clickup": {
       "name": "ClickUp",
       "description": "Task and project management — create, update, and track tasks, comments, and docs in ClickUp",
       "version": "1.0.0",
-      "path": "skills/clickup"
+      "path": "skills/clickup",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "find-skills": {
+      "name": "Find Skills",
+      "description": "Search for, install, and update skills from the broader skills ecosystem",
+      "version": "1.0.0",
+      "path": "skills/find-skills",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
     },
     "icp-discovery": {
       "name": "ICP Discovery",
       "description": "Ideal customer profile discovery and market validation",
       "version": "1.0.0",
-      "path": "skills/icp-discovery"
+      "path": "skills/icp-discovery",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "identity": {
+      "name": "Identity",
+      "description": "Org identity profile and company facts used by other skills",
+      "version": "1.0.0",
+      "path": "skills/identity",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "md-to-pdf": {
+      "name": "md-to-pdf",
+      "description": "Create a PDF from markdown or text content using the bundled default stylesheet",
+      "version": "1.0.0",
+      "path": "skills/md-to-pdf",
+      "sync": {
+        "managedPaths": ["SKILL.md", "assets/default.css"]
+      }
+    },
+    "visual-identity": {
+      "name": "Visual Identity",
+      "description": "Org visual identity data including palette, typography, logos, and asset paths",
+      "version": "1.0.0",
+      "path": "skills/visual-identity",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "voice-and-tone": {
+      "name": "Voice and Tone",
+      "description": "Org voice and tone guide used by content-producing skills",
+      "version": "1.0.0",
+      "path": "skills/voice-and-tone",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
     }
   }
 }
