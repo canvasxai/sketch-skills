@@ -1,16 +1,23 @@
 ---
 name: clickup
-description: ClickUp is the team's primary project management tool. Use this skill for all task and project management operations — fetching tasks, creating issues, updating status, checking priorities, listing work by user or space, and managing the team's backlog. Trigger whenever the user asks about tasks, tickets, project status, assignments, or anything tracked in ClickUp.
+description: Work with ClickUp — fetching tasks, creating issues, updating status, checking priorities, listing work by user or space, managing backlogs, and reading or editing docs. Trigger whenever the user asks about anything tracked in ClickUp.
 provider-type: canvas
 ---
 
 # ClickUp
 
-ClickUp is the team's *primary project management tool*. Use this skill for all task, project, and team management operations — creating tasks, checking status, updating priorities, listing work, and more.
+Use this skill for task, project, and team management operations in ClickUp — creating tasks, checking status, updating priorities, listing work, reading or editing docs, and managing comments.
 
 This skill runs via the Canvas CLI (`$CANVAS_CLI`). Auth is injected automatically — never pass `accountId` or credentials manually.
 
-On first use, resolve your workspace `team_id` via `clickup-context` (or the `Resolving IDs` snippets below) and record it in the *Known IDs* section at the bottom of this file. Reuse it from there on subsequent runs.
+## Org-specific context
+
+At the **start of every session**, read `SKILL-CONTEXT.md` in this directory. It holds the org's known IDs — workspace `team_id`, users, lists, spaces — and lets you skip redundant lookups.
+
+- If `SKILL-CONTEXT.md` has the ID you need, use it directly.
+- If an ID is missing, resolve it (see *Resolving IDs* below) and **append it to `SKILL-CONTEXT.md`** so it's available next time. Only track stable entities (workspaces, users, spaces, folders, lists). Never record task IDs or doc IDs there.
+- When you run `clickup-context` (or any action that returns a batch of stable entities), record **all** of them in `SKILL-CONTEXT.md` — not just the one you needed for the immediate task. This is the cheapest time to capture them.
+- If `SKILL-CONTEXT.md` doesn't exist, start by running `clickup-context` to populate workspace hierarchy, then create the file from the template structure documented inside it.
 
 ## Dos and Don'ts
 
@@ -18,7 +25,7 @@ On first use, resolve your workspace `team_id` via `clickup-context` (or the `Re
 - Run all `$CANVAS_CLI` commands directly in Bash — no subagent needed.
 - Use `--current-configuration '{"key":"value"}'` (single-quoted JSON) when calling `fetch-remote-options` with a dependent dropdown.
 - Use `archived: false` and `page: 0` on list/task fetches to keep response size manageable.
-- Prefer known IDs (see *Known IDs* section) to skip unnecessary resolution steps.
+- Prefer IDs from `SKILL-CONTEXT.md` to skip unnecessary resolution steps.
 - Use `--search-query "<name>"` with `fetch-remote-options` to narrow results when looking up a specific user, space, or list by name.
 - **If results are ambiguous** (multiple matches returned), stop and present the options to the user — ask them to confirm which one they mean before proceeding. Never guess or pick the first result.
 - Prefer bounding results via action parameters (`page`, `archived`, `limit`) instead of shell post-processing. If you need shell post-processing (`jq`, `grep`, `wc`), wrap the CLI invocation in `sh -c` first:
@@ -29,7 +36,7 @@ On first use, resolve your workspace `team_id` via `clickup-context` (or the `Re
 ### DON'T
 - **Never** pass `"accountId"` in `--configured-props` — auth is injected automatically by the CLI.
 - **Never** pipe `$CANVAS_CLI ...` directly — the SDK Bash tool returns `(eval):1: permission denied:` when a command from an env var appears on the left side of a pipe. Always use the `sh -c` wrapper form shown above.
-- **Never** hardcode a `space_id`, `list_id`, or `folder_id` that isn't in the Known IDs section — resolve it via `fetch-remote-options`.
+- **Never** hardcode a `space_id`, `list_id`, or `folder_id` that isn't in `SKILL-CONTEXT.md` — resolve it via `fetch-remote-options` and record it.
 
 ## Available Actions
 
@@ -67,7 +74,9 @@ On first use, resolve your workspace `team_id` via `clickup-context` (or the `Re
 
 ## Common Workflows
 
-### Get workspace context (start here)
+All snippets use `<team_id>`, `<list_id>`, etc. as placeholders. Substitute from `SKILL-CONTEXT.md` at execution time.
+
+### Get workspace context (start here if SKILL-CONTEXT.md is empty)
 
 ```bash
 $CANVAS_CLI direct-execute-action \
@@ -140,15 +149,6 @@ $CANVAS_CLI direct-execute-action \
   --output json
 ```
 
-### Get tasks in a space
-
-```bash
-$CANVAS_CLI direct-execute-action \
-  --component-key clickup-get-tasks-in-space \
-  --configured-props '{"team_id":"<team_id>","space_id":"<space_id>"}' \
-  --output json
-```
-
 ### Get comments on a task
 
 ```bash
@@ -200,10 +200,12 @@ $CANVAS_CLI direct-execute-action \
 
 ## Resolving IDs
 
+When you hit an ID that isn't in `SKILL-CONTEXT.md`, resolve it with one of these and record the result.
+
 ### Get workspaces
 ```bash
 $CANVAS_CLI fetch-remote-options \
-  --component-key clickup-get-tasks-by-user \
+  --component-key clickup-find-tasks \
   --field-name team_id \
   --output json
 ```
@@ -237,27 +239,3 @@ $CANVAS_CLI direct-execute-action \
 ```
 
 > Tip: `clickup-find-tasks` also accepts `assignee` as a name, email, or user ID directly — no prior resolution needed.
-
-## Known IDs
-
-**Keep this section up to date.** Whenever you resolve a new workspace, space, list, or user ID that isn't already here, add it. This avoids redundant `fetch-remote-options` calls in future sessions. Only track stable entities — workspaces, spaces, lists, and users. Do NOT add task IDs or doc IDs (too transient).
-
-### Workspaces
-| Name | team_id |
-|------|---------|
-| _(add workspaces as discovered)_ | |
-
-### Users
-| Name | user_id |
-|------|---------|
-| _(add users as discovered)_ | |
-
-### Lists
-| Name | list_id |
-|------|---------|
-| _(add lists as discovered)_ | |
-
-### Spaces
-| Name | space_id |
-|------|----------|
-| _(add spaces as discovered)_ | |
