@@ -19,6 +19,24 @@
         "managedPaths": ["SKILL.md"]
       }
     },
+    "create-automation": {
+      "name": "Create Automation",
+      "description": "Set up workflows, automations, and recurring tasks across connected apps with Slack/WhatsApp delivery",
+      "version": "1.0.0",
+      "path": "skills/create-automation",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "docx": {
+      "name": "DOCX",
+      "description": "Create, read, and edit Microsoft Word documents (.docx)",
+      "version": "1.0.0",
+      "path": "skills/docx",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
     "find-skills": {
       "name": "Find Skills",
       "description": "Search for, install, and update skills from the broader skills ecosystem",
@@ -53,6 +71,33 @@
       "path": "skills/md-to-pdf",
       "sync": {
         "managedPaths": ["SKILL.md", "assets/default.css"]
+      }
+    },
+    "pdf": {
+      "name": "PDF",
+      "description": "Manipulate existing PDFs — read, extract, OCR, fill forms, merge, split, rotate, watermark",
+      "version": "1.0.0",
+      "path": "skills/pdf",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "pptx": {
+      "name": "PPTX",
+      "description": "Create, read, and edit PowerPoint slide decks (.pptx)",
+      "version": "1.0.0",
+      "path": "skills/pptx",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
+    "research": {
+      "name": "Research",
+      "description": "Research a person, company, product, topic, trend, or event and produce a grounded briefing",
+      "version": "1.0.0",
+      "path": "skills/research",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
       }
     },
     "visual-identity": {
