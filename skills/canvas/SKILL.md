@@ -1,6 +1,6 @@
 ---
 name: canvas
-description: Connect to 3000+ third-party apps (Slack, Gmail, Google Calendar, Notion, GitHub, Linear, Asana, ClickUp, Airtable, Trello, HubSpot, Salesforce, Fireflies, Aimfox, Twitter, LinkedIn, and many more) to read data, take actions, and run automations on the user's behalf. Also provides web search and web scraping. Use this skill any time the user asks to do something involving an external app, service, or website — sending messages, fetching data, creating tickets, scheduling events, searching the web, etc. The user will not mention "Canvas" by name; they will just describe what they want.
+description: Connect to 3000+ third-party apps (Slack, Gmail, Google Calendar, Notion, GitHub, Linear, Asana, ClickUp, Airtable, Trello, HubSpot, Salesforce, Fireflies, Aimfox, Twitter, LinkedIn, and many more) to read data, take immediate actions, search the web, and scrape public websites. Use this for one-off external app operations such as sending messages, fetching data, creating tickets, scheduling events, searching the web, or reading websites. Do not use this as the primary skill when the user asks to set up an automation, recurring task, reminder, monitor, workflow, or "when/whenever" external app trigger; use create-automation first, then this skill only for Canvas CLI details if needed.
 provider-type: canvas
 ---
 
