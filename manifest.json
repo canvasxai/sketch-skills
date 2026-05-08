@@ -19,6 +19,15 @@
         "managedPaths": ["SKILL.md"]
       }
     },
+    "create-automation": {
+      "name": "Create Automation",
+      "description": "Create Sketch automations, recurring tasks, scheduled workflows, and Canvas-managed external-event triggers",
+      "version": "1.0.0",
+      "path": "skills/create-automation",
+      "sync": {
+        "managedPaths": ["SKILL.md"]
+      }
+    },
     "find-skills": {
       "name": "Find Skills",
       "description": "Search for, install, and update skills from the broader skills ecosystem",
