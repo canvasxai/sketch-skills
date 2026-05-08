@@ -214,9 +214,61 @@ Good agent prompts include:
 
 ### Action step
 
-Avoid action steps unless the runtime explicitly supports the required app operation. Do not write scripts that shell out to a legacy integration launcher.
+Use action steps when the workflow needs deterministic JavaScript glue: small JSON transforms, bounded loops, and Canvas app reads/writes whose component key and props are known.
 
-Prefer Canvas-managed triggers plus agent steps for this phase. For app reads/writes that must run during the workflow, first confirm the current runtime supports the operation through Canvas. If it does not, tell the user the automation can be staged but the app action cannot be safely executed yet.
+Action scripts run as an async function body with this signature:
+
+```js
+async function action(input, ctx, signal) {
+  // your script body
+}
+```
+
+The script body should `return` a small JSON-serializable value. `input` is the previous step output or trigger payload. `ctx` contains:
+
+- `ctx.env.CANVAS_CLI` — brokered Canvas CLI launcher for action execution.
+- `ctx.env.INTEGRATION_CLI` — temporary legacy alias for `ctx.env.CANVAS_CLI`; prefer `CANVAS_CLI`.
+- `ctx.workspaceDir` — workflow workspace directory.
+- `ctx.log` — step-scoped logger.
+
+Use `ctx.env`, not `process.env`. When invoking Canvas from a script, pass the script env explicitly:
+
+```js
+const { execFile } = await import("node:child_process");
+const { promisify } = await import("node:util");
+const execFileAsync = promisify(execFile);
+
+const { stdout } = await execFileAsync(
+  process.execPath,
+  [
+    ctx.env.CANVAS_CLI,
+    "direct-execute-action",
+    "--component-key",
+    "gmail-find-email",
+    "--configured-props",
+    JSON.stringify({ query: "newer_than:1h" }),
+    "--output",
+    "json"
+  ],
+  { cwd: ctx.workspaceDir, env: ctx.env, encoding: "utf8" }
+);
+
+const result = JSON.parse(stdout);
+return {
+  count: result.data?.messages?.length ?? 0,
+  messages: (result.data?.messages ?? []).map((m) => ({
+    id: m.id,
+    from: m.from,
+    subject: m.subject,
+    date: m.date,
+    snippet: m.snippet
+  }))
+};
+```
+
+Do not depend on stdin/stdout for step output. Do not return raw app responses; project them into the smallest useful object before returning. Avoid long-running CPU loops, background processes, and `process.exit()`.
+
+Prefer Canvas-managed triggers plus agent steps when the app event itself should trigger the workflow. For app reads/writes that must run during the workflow, first confirm the current runtime supports the operation through Canvas. If it does not, tell the user the automation can be staged but the app action cannot be safely executed yet.
 
 ## Verification
 
