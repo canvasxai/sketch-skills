@@ -21,7 +21,7 @@
     },
     "create-automation": {
       "name": "Create Automation",
-      "description": "Create Sketch automations, recurring tasks, scheduled workflows, and Canvas-managed external-event triggers",
+      "description": "Set up workflows, automations, and recurring tasks across connected apps with Slack/WhatsApp delivery",
       "version": "1.0.0",
       "path": "skills/create-automation",
       "sync": {
