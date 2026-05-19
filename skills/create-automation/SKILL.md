@@ -1,166 +1,327 @@
 ---
 name: create-automation
-description: >
-  Set up workflows, automations, and recurring tasks involving integrations or
-  multi-step pipelines. Use this skill whenever the user wants to automate
-  something scheduled or multi-step that touches connected apps, with delivery
-  to Slack or WhatsApp. Triggers: "remind me every morning to…", "every Monday
-  send me…", "summarize my X and message me", "set up an automation for…",
-  "create a workflow that…", "schedule a daily digest of…", "fetch X from app
-  A and post to app B", "build me a recurring task", "automate this".
-  Use even when the user doesn't say "automation" — if the ask is recurring or
-  multi-step across apps, that's this skill. Do NOT use for one-off "do X right
-  now" tasks — handle those directly with the relevant integration without
-  building a workflow.
+description: Create Sketch automations, recurring tasks, scheduled workflows, and external app event triggers. Always use this skill first when the user asks to "set up an automation", "create an automation", "automate this", "remind me", "run this every day", "monitor this", "whenever/when a new Linear issue is created", "when a ClickUp task is created", or any workflow that should keep running later. Use this before the canvas skill for app-triggered automations; canvas is only the integration backend.
 ---
 
 # Creating Automations
 
-## Native delivery (no integration needed)
+Use this skill to turn a user request into a Sketch automation. Sketch stores automations in `scheduled_tasks`; some run on a local schedule, and some are triggered by Canvas-managed external app events.
 
-This agent runs on **Slack** and **WhatsApp** and natively delivers messages to either platform — no third-party messaging integration required. For "notify me / remind me / summarize and send" tasks, use a workflow whose final step is an `agent` step and set `output_platform` to `"slack"` or `"whatsapp"`. The agent's text output is delivered directly. Never wire up a Slack/WhatsApp API component for messaging.
+Do not mention Canvas to the user unless you need them to connect an app or resolve an ambiguous setup choice. The user describes apps and events; you choose the right automation shape.
 
-## Before you start
+## Surfaces
 
-1. `$CANVAS_CLI search-apps --output json` (no queries) — lists apps the user has connected. Each item has `nameSlug`, `name`, `isConnected`. Canvas is always installed; don't pre-check `getProviderConfig`.
-2. If the user asks for an app they haven't connected, tell them to connect it in Settings → Integrations. Don't build a broken workflow.
+- `ManageScheduledTasks` creates and manages Sketch automations.
+- `$CANVAS_CLI` discovers apps, components, schemas, and Canvas-managed trigger support.
+- Native Sketch delivery handles Slack and WhatsApp outputs. Do not create Slack/WhatsApp API actions just to send the final message.
 
-## Simple vs multi-step
+For external app triggers, Canvas is the integration backend and `$CANVAS_CLI` is the discovery surface.
+Do not search PATH for `canvas`, `canvas-cli`, or any global binary. Invoke `$CANVAS_CLI ... --output json` directly.
 
-- **Simple**: `ManageScheduledTasks { action: "add", prompt, schedule_type, schedule_value }`. Use for "remind me…" or any single-prompt instruction.
-- **Multi-step**: `ManageScheduledTasks { action: "add", title, steps, schedule_type, schedule_value }`. Use when the task fetches from one app, processes, and/or sends to another.
+If `$CANVAS_CLI` is unavailable, do not attempt external app triggers. Use a local schedule fallback when that can satisfy the request; otherwise explain that the app-trigger integration is not available.
 
-**Timezone**: leave the `timezone` field empty. The user's tz from the `<time>` block in your system prompt is used as the default automatically. Only set `timezone` when the user explicitly names a different one for the task ("schedule this in PST"). If the user says "set my timezone to X" instead, call `SetUserTimezone({ timezone: "X" })` — that updates their default for everything, not just one task.
+## Choose The Trigger
 
-## Step types
+### Local schedule
 
-- `trigger`: first step, `triggerConfig: { type: "schedule" }`.
-- `action`: Node.js script in a sandbox; calls connected apps via the integration CLI. Use for fetching, creating, sending, reading.
-- `agent`: AI step; no integration needed. Use for summarize, analyze, transform, decide.
+Use a local schedule when the user asks for a time-based run:
 
-## Action-step scripts
+- "every morning"
+- "every Friday at 5"
+- "in 2 hours"
+- "daily summary"
+- "check every 30 minutes"
 
-Input from the previous step is available as `input` (parsed JSON). Return a value from the wrapper — it becomes the next step's input.
+Create with `ManageScheduledTasks` using:
 
-### Runtime env contract
+- `schedule_type: "cron"` for calendar schedules.
+- `schedule_type: "interval"` for fixed second intervals, minimum 60 seconds.
+- `schedule_type: "once"` for one-time future runs.
+- Leave `timezone` empty unless the user explicitly names a different timezone. The user's default timezone is already supplied by Sketch.
 
-The action-step child process gets a **locked-down env** — `process.env` is not inherited. Exactly these vars are set:
+For a single instruction, use the simple form:
 
-- `INTEGRATION_CLI` — absolute path to the CLI's `.js` file. Always invoke as `node $INTEGRATION_CLI <subcommand> …`. Never hardcode a path. If unset, you should not be using an action step.
-- Provider credentials (e.g. `CANVAS_API_KEY_MCP`, `CANVAS_USER_EMAIL` for the Canvas provider) — set automatically. Treat as opaque; never read or log.
-- `PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin` (fixed).
-- `NODE_NO_WARNINGS=1`.
-
-Not present in the action sandbox: `HOME`, chat-session env, `ANTHROPIC_API_KEY`, `$CANVAS_CLI` (chat-only — see below). Don't shell out to anything that needs `$HOME` (caches, configs).
-
-In **chat mode** (used only for sampling per "Verifying before commit"), `$CANVAS_CLI` is a shell-script launcher that goes through a credentialed broker — invoke it directly (no `node` prefix). It runs the same underlying `canvas-cli.js` as `$INTEGRATION_CLI`, so response shapes are identical.
-
-### Auth model
-
-The CLI resolves auth server-side from the user's connected accounts. **`configuredProps` carries only the action's input fields — no `authProvisionId`, no `accountId`.** If the user isn't connected, the call returns `CONNECTION_NOT_CONNECTED`.
-
-### Script shape
-
-```javascript
-const { execSync } = require("child_process");
-
-const props = JSON.stringify({ maxResults: 10 });
-const raw = execSync(
-  `node $INTEGRATION_CLI direct-execute-action --component-key gmail-find-email --configured-props '${props}' --output json`,
-  { env: process.env, encoding: "utf8", shell: "/bin/sh" },
-);
-const parsed = JSON.parse(raw);
-
-// Project down — never return the raw blob (see "Slim the output").
-const messages = (parsed.data?.ret ?? []).map((m) => {
-  const headers = m.payload?.headers ?? [];
-  const h = (name) => headers.find((x) => x.name === name)?.value ?? null;
-  return { id: m.id, from: h("From"), subject: h("Subject"), date: h("Date"), snippet: m.snippet };
-});
-return { count: messages.length, messages };
+```json
+{
+  "action": "add",
+  "prompt": "Summarize today's open Linear issues and send me the highlights.",
+  "schedule_type": "cron",
+  "schedule_value": "0 9 * * 1-5"
+}
 ```
 
-Rules:
-- Always `node $INTEGRATION_CLI …`.
-- Pass `env: process.env` to `execSync` so credential env vars propagate.
-- Always `return` from the wrapper — that becomes the next step's input.
-- Default timeout: 30 minutes (`step.timeout` overrides, in seconds).
+### Canvas-managed external trigger
 
-### Slim the output
+Use a Canvas-managed trigger when the user asks for an external app event:
 
-The runtime passes the **whole return value** to the next step — no projection. For an `agent` downstream, fat payloads (MIME parts, base64, HTML bodies, label arrays) inflate the prompt every run, waste tokens, and bury the signal. For another `action` downstream, they bloat run history.
+- "when a ClickUp issue is created"
+- "whenever a Linear ticket is opened"
+- "when a new row appears in Google Sheets"
+- "when a GitHub issue gets labeled"
 
-Rules of thumb:
-- Drop envelopes/metadata (`success`, `executedAt`, paging) unless the next step reads them.
-- For lists, `.map()` items into a minimal object — keep `id`, key display fields, and a snippet/summary; drop full bodies.
-- Bound the CLI request itself first (`maxResults`, date filters, `metadataOnly: true` where supported) — slim-at-fetch beats slim-at-return.
-- Don't trust training-data API shapes — Canvas components flatten/rename fields. `get-component-definition` documents only the **input** schema, not the output. Sample first (next section).
+For external app event language like "when" or "whenever" an issue, task, ticket, row, record, or message is created, updated, moved, labeled, or otherwise changes, a Canvas-managed trigger is mandatory when `$CANVAS_CLI` is available. Do not create a scheduled polling fallback unless the user explicitly asks for polling or Canvas trigger discovery/creation is unavailable.
 
-## Verifying before commit (MANDATORY)
+The Sketch workflow still lives in `scheduled_tasks`, but it must be represented as an external Canvas trigger:
 
-Every action step must be invoked against live data **before** `ManageScheduledTasks { action: "add" }`. Empty-result runs give false confidence: a workflow can complete green with zero items while the projection is silently broken against a shape that never existed.
+- `schedule_type` and `schedule_value` are omitted when calling `ManageScheduledTasks`.
+- The trigger step uses `triggerConfig.type: "canvas"`.
+- Include `app`, `eventDescription`, and `componentKey` when known.
+- Use `status: "pending_canvas_setup"` until a Canvas workflow has actually been created.
+- When Canvas returns IDs, update the trigger config with `status: "active"`, `canvasWorkflowId`, `canvasTriggerNodeId`, and `canvasActionNodeId`.
 
-### Read-only actions
+Example pending Sketch workflow:
 
-1. **Sample via `$CANVAS_CLI`** (chat-mode launcher; runs the same `canvas-cli.js` the action sandbox does, so the response shape is identical). Run the command bare — the Bash tool captures stdout into the tool result for you to read directly.
+```json
+{
+  "action": "add",
+  "title": "Handle new ClickUp issues",
+  "description": "Runs Sketch when ClickUp creates a new issue.",
+  "steps": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "label": "ClickUp issue created",
+      "icon": "clickup",
+      "position": { "x": 0, "y": 0 },
+      "triggerConfig": {
+        "type": "canvas",
+        "app": "clickup",
+        "eventDescription": "new issue created",
+        "componentKey": "clickup.issue.created",
+        "status": "pending_canvas_setup"
+      }
+    },
+    {
+      "id": "agent1",
+      "type": "agent",
+      "label": "Handle issue",
+      "icon": "sketch-ai",
+      "position": { "x": 0, "y": 100 },
+      "agentPrompt": "Use the trigger payload to understand the newly created ClickUp issue. Execute the user's requested script or workflow, then report the result clearly."
+    }
+  ]
+}
+```
 
-   ```bash
-   $CANVAS_CLI direct-execute-action --component-key <key> --configured-props '{"limit":3}' --output json
-   ```
+## Canvas Discovery
 
-   Use a **broad** query first (`limit: 3`, no filters) — empty responses teach you nothing about field shapes. If you need to filter/transform with `jq`, wrap in `sh -c` — a bare `$CANVAS_CLI ... | jq` fails under the SDK Bash tool with `(eval):1: permission denied:` (env-var command on the left of a pipe):
-   ```bash
-   sh -c '"$CANVAS_CLI" direct-execute-action --component-key <key> --configured-props '"'"'{"limit":3}'"'"' --output json' | jq '.data.ret[0] | keys'
-   ```
+Before creating a Canvas-managed trigger, discover and verify the app/trigger.
 
-2. **Note the shape.** From the tool result, capture top-level keys and, for lists, the keys of the first item.
+1. Check app connection:
 
-3. **Field contract check.** For each downstream step, list every field its prompt or script reads and confirm it's present and non-empty. Example:
-   ```
-   fetch_meetings real shape: data.transcripts[0] keys → [id, title, url, createdAt, durationMs]
+```bash
+$CANVAS_CLI search-apps --queries "clickup,linear" --output json
+```
 
-   Downstream (process_todos prompt):
-     id              ✓
-     title           ✓
-     date            ✗ (response has createdAt)
-     participants[]  ✗ (not on list endpoint)
-     action_items    ✗ (nowhere in component)
-   → Cannot build as requested. Surface to user.
-   ```
-   Optional chaining and `?? []` will silently mask missing fields as empty arrays — that's exactly the failure mode this check exists to catch.
+If the relevant app is not connected, ask the user to connect it in Settings → Integrations. Do not create a broken trigger workflow.
+Do not call the app's own MCP authentication tool as a substitute for Sketch/Canvas connection.
 
-4. Only after every action step passes, call `add`.
+2. Search triggers with `search-components` through the Canvas CLI. If the same surface is exposed as a tool/MCP call, use `search_components`; the intent is the same.
 
-### Agent steps
+```bash
+$CANVAS_CLI search-components --raw '{"queries":[{"app":"clickup","query":"new issue created trigger"}]}' --output json
+```
 
-Take the projected sample from the upstream action. List every field the agent prompt references; confirm each is present and non-empty in the sample. If a referenced field is missing or always empty, fix the prompt or the upstream projection before commit.
+Use `search-components` / `search_components` for trigger discovery.
 
-### Write/destructive actions (create/send/update/delete)
+3. Always inspect the selected trigger component before creating the Sketch workflow:
 
-Can't be sampled live without side effects. Instead:
-- Confirm the input schema via `get-component-definition`.
-- Show the user the exact payload (all values filled in) and confirm before commit.
-- You still must pre-commit-verify the upstream **read** actions — otherwise the payload is built from a broken projection at runtime.
+```bash
+$CANVAS_CLI get-component-definition --key <component-key> --output json
+```
 
-## After creation (secondary check)
+For Canvas-managed trigger components, read `data.outputSchema` from the response when it is present. Use that schema as the authoring-time contract for the event payload. Canvas-triggered Sketch workflow runs receive that trigger payload at `input.data`; workflow steps should reference fields from that stable path, such as `input.data.task` for task-based triggers. If `data.outputSchema` is absent, do not guess internal Canvas wrapper paths like `input.output.data`, `input.data.data`, or raw node-output structures.
 
-If pre-commit verification was done properly, this just confirms scheduler wiring.
+4. Resolve required dropdowns with remote options only when needed:
 
-1. `ManageScheduledTasks { action: "run", task_id }`.
-2. `action: "getRun"` to inspect step outputs.
-3. Fix with `action: "updateStepContent"` if needed.
-4. Only report "working" if the run produced **non-empty** data. If it completed but returned zero items, say so explicitly.
+```bash
+$CANVAS_CLI fetch-remote-options --component-key <component-key> --field-name <field> --output json
+```
 
-## Discovering components
+If multiple options match, ask the user. Do not guess.
 
-- `$CANVAS_CLI search-apps --output json` — list connected apps (no args) or search the catalog (`--queries`).
-- `$CANVAS_CLI get-components --apps <slug> --component-type action` — list actions for an app. Slugs use underscores (`google_sheets`); always `--apps`, never `--app`.
-- `$CANVAS_CLI search-components --raw '{"queries":[{"app":"<slug>","query":"<intent>"}]}'` — natural-language discovery within an app.
-- `$CANVAS_CLI get-component-definition --key <component-key>` — input schema for a specific component. (Note: this subcommand uses `--key`; `direct-execute-action` and `fetch-remote-options` use `--component-key`.)
-- `$CANVAS_CLI fetch-remote-options --component-key <key> --field-name <field> [--search-query <q>]` — resolve dropdown values (channel name → ID, list name → ID). Use only when you don't already have the ID. If multiple matches, surface to the user — don't guess.
+## Creating The Canvas Workflow
 
-## Common patterns
+When Canvas exposes workflow creation, create the Canvas-side two-node workflow after the Sketch workflow exists. This should create and deploy the Canvas workflow by default:
 
-- **Fetch → Summarize → Deliver**: action → agent → native delivery via `output_platform`.
-- **Monitor → Alert**: action (check) → agent (decide if alert-worthy) → output if yes.
-- **Collect → Transform → Store**: action (fetch) → agent (restructure) → action (write to sheet/task).
+1. Canvas trigger node: the selected external app trigger component.
+2. Sketch action node: call the Sketch workflow action with the Sketch workflow ID.
+
+Use the Canvas command/tool intended for this purpose. The expected tool name is `create_sketch_trigger_workflow`; if surfaced as a CLI command, it is exposed as `create-sketch-trigger-workflow`.
+
+```bash
+$CANVAS_CLI create-sketch-trigger-workflow \
+  --sketch-workflow-id <scheduled_task_id> \
+  --trigger-app-slug <app-slug> \
+  --trigger-component-key <component-key> \
+  --trigger-configured-props '<json>' \
+  --output json
+```
+
+After creation, update the Sketch automation with Canvas IDs. Mark the trigger active only when Canvas returns `isLive: true` or `deploymentStatus: "deployed"`. If Canvas returns a draft or pending deployment state, keep the trigger `pending_canvas_setup` and tell the user the Sketch workflow is staged but the Canvas trigger is not live yet.
+
+```json
+{
+  "action": "update",
+  "task_id": "<scheduled_task_id>",
+  "steps": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "label": "ClickUp issue created",
+      "icon": "clickup",
+      "position": { "x": 0, "y": 0 },
+      "triggerConfig": {
+        "type": "canvas",
+        "app": "clickup",
+        "eventDescription": "new issue created",
+        "componentKey": "clickup.issue.created",
+        "configuredProps": {},
+        "status": "active",
+        "canvasWorkflowId": "<canvas_workflow_id>",
+        "canvasTriggerNodeId": "<canvas_trigger_node_id>",
+        "canvasActionNodeId": "<canvas_action_node_id>"
+      }
+    },
+    {
+      "id": "agent1",
+      "type": "agent",
+      "label": "Handle issue",
+      "icon": "sketch-ai",
+      "position": { "x": 0, "y": 100 },
+      "agentPrompt": "<same prompt as creation>"
+    }
+  ]
+}
+```
+
+If Canvas workflow creation is not available yet, still create the Sketch workflow with `pending_canvas_setup` so it is visible in the Automations UI as Canvas-managed pending setup. Tell the user the Sketch workflow is staged and Canvas trigger wiring is pending.
+
+## Workflow Step Guidance
+
+Do not collapse compound work into a single agent step. If the user asks for a workflow that reads app data, reasons over it, writes app data, and reports a result, create distinct execution steps for those phases. A Canvas trigger only decides when the workflow starts; it does not replace the Sketch workflow steps that should run after the event arrives.
+
+Use multiple non-trigger steps when the request contains more than one meaningful operation, especially any combination of:
+
+- extracting or normalizing an event payload
+- fetching extra app data
+- reasoning, classification, planning, summarization, or generation
+- creating, updating, or searching external app records
+- sending or returning a final user-facing summary
+
+Prefer action steps for deterministic app reads/writes and bounded data transforms. Prefer agent steps for interpretation, planning, generation, and final prose. Keep each step small enough that its output is a useful input to the next step.
+
+### Trigger step
+
+Every multi-step workflow starts with one trigger step.
+
+- Scheduled trigger: `triggerConfig: { "type": "schedule" }`.
+- Canvas trigger: `triggerConfig: { "type": "canvas", ... }`.
+
+### Agent step
+
+Use agent steps for reasoning, summarizing, transforming, deciding, and executing Sketch-native behavior. Write the prompt so it can run without the chat history.
+
+Good agent prompts include:
+
+- What input to expect.
+- What action to take.
+- What output to send or record.
+- Any constraints from the user.
+
+### Action step
+
+Use action steps when the workflow needs deterministic JavaScript glue: small JSON transforms, bounded loops, and Canvas app reads/writes whose component key and props are known.
+
+Action scripts run as an async function body with this signature:
+
+```js
+async function action(input, ctx, signal) {
+  // your script body
+}
+```
+
+The script body should `return` a small JSON-serializable value. `input` is the previous step output or trigger payload. `ctx` contains:
+
+- `ctx.env.CANVAS_CLI` — brokered Canvas CLI launcher for action execution.
+- `ctx.env.INTEGRATION_CLI` — temporary legacy alias for `ctx.env.CANVAS_CLI`; prefer `CANVAS_CLI`.
+- `ctx.workspaceDir` — workflow workspace directory.
+- `ctx.log` — step-scoped logger.
+
+Use `ctx.env`, not `process.env`. When invoking Canvas from a script, pass the script env explicitly:
+
+```js
+const { execFile } = await import("node:child_process");
+const { promisify } = await import("node:util");
+const execFileAsync = promisify(execFile);
+
+const { stdout } = await execFileAsync(
+  ctx.env.CANVAS_CLI,
+  [
+    "direct-execute-action",
+    "--component-key",
+    "gmail-find-email",
+    "--configured-props",
+    JSON.stringify({ query: "newer_than:1h" }),
+    "--output",
+    "json"
+  ],
+  { cwd: ctx.workspaceDir, env: { ...process.env, ...ctx.env }, encoding: "utf8" }
+);
+
+const result = JSON.parse(stdout);
+return {
+  count: result.data?.messages?.length ?? 0,
+  messages: (result.data?.messages ?? []).map((m) => ({
+    id: m.id,
+    from: m.from,
+    subject: m.subject,
+    date: m.date,
+    snippet: m.snippet
+  }))
+};
+```
+
+Do not depend on stdin/stdout for step output. Do not return raw app responses; project them into the smallest useful object before returning. Avoid long-running CPU loops, background processes, and `process.exit()`.
+
+Prefer Canvas-managed triggers plus agent steps when the app event itself should trigger the workflow. For app reads/writes that must run during the workflow, first confirm the current runtime supports the operation through Canvas. If it does not, tell the user the automation can be staged but the app action cannot be safely executed yet.
+
+## Verification
+
+### Before creation
+
+- For schedule workflows, confirm the cron/interval/once value matches the user's requested timing.
+- For Canvas triggers, confirm app connection, selected trigger component, and required configured props.
+- If the external event has ambiguous scope, ask before creating. Examples: which ClickUp workspace/list, which Linear team/project, which GitHub repo.
+
+### After creation
+
+For local schedules:
+
+1. Use `ManageScheduledTasks { "action": "run", "task_id": "<id>" }` when a manual run is meaningful.
+2. Use `ManageScheduledTasks { "action": "getRun", "task_id": "<id>" }` to inspect the result.
+3. Report whether it ran with non-empty useful output.
+
+For Canvas triggers:
+
+- Do not use "Run now" as proof that the external trigger is wired.
+- Confirm the Sketch workflow exists and appears as Canvas-managed.
+- If Canvas workflow creation ran, report the Canvas workflow ID and active status.
+- If it is pending, say it is staged in Sketch and waiting for Canvas trigger wiring.
+
+## Error Handling
+
+- App not connected: create the Sketch workflow as `pending_canvas_setup` when the app and trigger component are identifiable, then tell the user it is staged and will activate after the app is connected in Settings → Integrations.
+- No matching trigger component: say the trigger is not available yet and offer a scheduled fallback.
+- Ambiguous trigger configuration: ask a focused question with the viable options.
+- Canvas workflow creation unavailable: create the Sketch workflow as `pending_canvas_setup` and explain that trigger wiring is pending.
+- Canvas creation failed after Sketch workflow creation: update the trigger config to `status: "error"` with a short `errorMessage` when possible.
+
+## Output To User
+
+Keep the response short:
+
+- What was created.
+- Trigger type: scheduled or external app event.
+- Current status: active, pending Canvas setup, or error.
+- Any manual step the user must take, such as connecting an app.
