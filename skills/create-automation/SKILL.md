@@ -132,6 +132,18 @@ $CANVAS_CLI get-component-definition --key <component-key> --output json
 
 For Canvas-managed trigger components, read `data.outputSchema` from the response when it is present. Use that schema as the authoring-time contract for the event payload. Canvas-triggered Sketch workflow runs receive that trigger payload at `input.data`; workflow steps should reference fields from that stable path, such as `input.data.task` for task-based triggers. If `data.outputSchema` is absent, do not guess internal Canvas wrapper paths like `input.output.data`, `input.data.data`, or raw node-output structures.
 
+The trigger payload is often a compact event, not the complete app object. If the user's workflow needs fields that are not present in `data.outputSchema`, add a workflow step that fetches the full object by ID before using those fields. Do not write prompts that read absent fields as if they exist. For ClickUp task triggers, the trigger payload includes the task ID, name, URL, list, parent, status, and due date, but not the full description or all custom field values; fetch the task with `clickup-get-task` before copying descriptions, reading detailed custom fields, or creating subtasks from full task content. When creating ClickUp subtasks that must copy the parent description, pass the fetched parent description explicitly as the `description` prop to `clickup-create-task`.
+
+When a workflow action/script calls Canvas with `direct-execute-action`, pass all required configured props from `get-component-definition`, even if the trigger already had similar props. Parse the CLI response with the standard action shape:
+
+```js
+const result = JSON.parse(stdout);
+if (result.success === false) throw new Error(result.error?.message ?? result.error ?? "Canvas action failed");
+const actionData = result.data?.data ?? result.data;
+```
+
+For ClickUp `clickup-get-task`, include at least `team_id` and `task_id`; include `list_id` too when known. Do not assume the useful task object is at `result.data`.
+
 4. Resolve required dropdowns with remote options only when needed:
 
 ```bash
