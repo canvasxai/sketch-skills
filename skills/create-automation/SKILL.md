@@ -59,6 +59,8 @@ Use a Canvas-managed trigger when the user asks for an external app event:
 - "when a new row appears in Google Sheets"
 - "when a GitHub issue gets labeled"
 
+For external app event language like "when" or "whenever" an issue, task, ticket, row, record, or message is created, updated, moved, labeled, or otherwise changes, prefer a Canvas-managed trigger when `$CANVAS_CLI` is available and the selected trigger exposes an output schema. Do not create a scheduled polling fallback unless the user explicitly asks for polling, Canvas trigger discovery/creation is unavailable, or the selected trigger component does not expose `data.outputSchema`.
+
 The Sketch workflow still lives in `scheduled_tasks`, but it must be represented as an external Canvas trigger:
 
 - `schedule_type` and `schedule_value` are omitted when calling `ManageScheduledTasks`.
@@ -122,11 +124,38 @@ $CANVAS_CLI search-components --raw '{"queries":[{"app":"clickup","query":"new i
 
 Use `search-components` / `search_components` for trigger discovery.
 
-3. Inspect the selected component when needed:
+3. Always inspect the selected trigger component before creating the Sketch workflow:
 
 ```bash
 $CANVAS_CLI get-component-definition --key <component-key> --output json
 ```
+
+For Canvas-managed trigger components, read `data.outputSchema` from the response when it is present. Use that schema as the authoring-time contract for the event payload. Canvas-triggered Sketch workflow runs receive that trigger payload at `input.data`; workflow steps should reference fields from that stable path, such as `input.data.task` for task-based triggers.
+
+If `data.outputSchema` is absent, do not create a Canvas trigger workflow for this request. Treat the trigger as unsupported for Canvas-triggered Sketch workflows for now, and create a scheduled polling workflow instead. The polling workflow should periodically query the app for recent matching records, dedupe against workflow state, and process only new or changed records. Do not guess internal Canvas wrapper paths like `input.output.data`, `input.data.data`, or raw node-output structures.
+
+The trigger payload is often a compact event, not the complete app object. If the user's workflow needs fields that are not present in `data.outputSchema`, add a workflow step that fetches the full object by ID before using those fields. Do not write prompts that read absent fields as if they exist.
+
+When a workflow action/script calls Canvas with `direct-execute-action`, pass all required configured props from `get-component-definition`, even if the trigger already had similar props. Parse the CLI response with the standard action shape:
+
+```js
+const result = JSON.parse(stdout);
+if (result.success === false) throw new Error(result.error?.message ?? result.error ?? "Canvas action failed");
+const actionData = result.data?.data ?? result.data;
+```
+
+### App-specific instructions
+
+Keep app-specific details here temporarily. Use them only for the named app, and prefer `get-component-definition` over these notes when Canvas exposes the same information.
+
+ClickUp:
+
+- For task triggers, the trigger payload includes the task ID, name, URL, list, parent, status, and due date, but not the full description or all custom field values. Fetch the task with `clickup-get-task` before copying descriptions, reading detailed custom fields, or creating subtasks from full task content.
+- For `clickup-get-task`, include at least `team_id` and `task_id`; include `list_id` too when known. Do not assume the useful task object is at `result.data`.
+- `clickup-get-task` does not return child subtasks.
+- For `clickup-find-tasks`, use the exact prop names from the component definition (`team_id`, `list_id`, `subtasks`, etc.). The useful list may be under `result.data.ret` for Pipedream-backed actions or under `result.data.data.tasks` for Canvas-normalized actions, so parse both shapes before filtering.
+- For workflows that need to update existing ClickUp subtasks under a parent task, use `clickup-find-tasks` with `team_id`, `list_id`, and `subtasks: true`, then filter returned tasks where `task.parent` or `task.top_level_parent` equals the parent task ID.
+- When creating or updating ClickUp subtasks that must copy the parent description, pass the fetched parent description explicitly as the `description` prop.
 
 4. Resolve required dropdowns with remote options only when needed:
 
@@ -138,22 +167,23 @@ If multiple options match, ask the user. Do not guess.
 
 ## Creating The Canvas Workflow
 
-When Canvas exposes workflow creation, create the Canvas-side two-node workflow after the Sketch workflow exists:
+When Canvas exposes workflow creation, create the Canvas-side two-node workflow after the Sketch workflow exists. This should create and deploy the Canvas workflow by default:
 
 1. Canvas trigger node: the selected external app trigger component.
 2. Sketch action node: call the Sketch workflow action with the Sketch workflow ID.
 
-Use the Canvas command/tool intended for this purpose. The expected tool name is `create_trigger_workflow`; if surfaced as a CLI command, it may be exposed as `create-trigger-workflow`.
+Use the Canvas command/tool intended for this purpose. The expected tool name is `create_sketch_trigger_workflow`; if surfaced as a CLI command, it is exposed as `create-sketch-trigger-workflow`.
 
 ```bash
-$CANVAS_CLI create-trigger-workflow \
+$CANVAS_CLI create-sketch-trigger-workflow \
   --sketch-workflow-id <scheduled_task_id> \
-  --trigger-component-id <component-key> \
+  --trigger-app-slug <app-slug> \
+  --trigger-component-key <component-key> \
   --trigger-configured-props '<json>' \
   --output json
 ```
 
-After creation, update the Sketch automation with Canvas IDs and mark the trigger active:
+After creation, update the Sketch automation with Canvas IDs. Mark the trigger active only when Canvas returns `isLive: true` or `deploymentStatus: "deployed"`. If Canvas returns a draft or pending deployment state, keep the trigger `pending_canvas_setup` and tell the user the Sketch workflow is staged but the Canvas trigger is not live yet.
 
 ```json
 {
@@ -193,6 +223,18 @@ After creation, update the Sketch automation with Canvas IDs and mark the trigge
 If Canvas workflow creation is not available yet, still create the Sketch workflow with `pending_canvas_setup` so it is visible in the Automations UI as Canvas-managed pending setup. Tell the user the Sketch workflow is staged and Canvas trigger wiring is pending.
 
 ## Workflow Step Guidance
+
+Do not collapse compound work into a single agent step. If the user asks for a workflow that reads app data, reasons over it, writes app data, and reports a result, create distinct execution steps for those phases. A Canvas trigger only decides when the workflow starts; it does not replace the Sketch workflow steps that should run after the event arrives.
+
+Use multiple non-trigger steps when the request contains more than one meaningful operation, especially any combination of:
+
+- extracting or normalizing an event payload
+- fetching extra app data
+- reasoning, classification, planning, summarization, or generation
+- creating, updating, or searching external app records
+- sending or returning a final user-facing summary
+
+Prefer action steps for deterministic app reads/writes and bounded data transforms. Prefer agent steps for interpretation, planning, generation, and final prose. Keep each step small enough that its output is a useful input to the next step.
 
 ### Trigger step
 
@@ -239,9 +281,8 @@ const { promisify } = await import("node:util");
 const execFileAsync = promisify(execFile);
 
 const { stdout } = await execFileAsync(
-  process.execPath,
+  ctx.env.CANVAS_CLI,
   [
-    ctx.env.CANVAS_CLI,
     "direct-execute-action",
     "--component-key",
     "gmail-find-email",
@@ -250,7 +291,7 @@ const { stdout } = await execFileAsync(
     "--output",
     "json"
   ],
-  { cwd: ctx.workspaceDir, env: ctx.env, encoding: "utf8" }
+  { cwd: ctx.workspaceDir, env: { ...process.env, ...ctx.env }, encoding: "utf8" }
 );
 
 const result = JSON.parse(stdout);
