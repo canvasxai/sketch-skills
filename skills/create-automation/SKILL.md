@@ -59,7 +59,7 @@ Use a Canvas-managed trigger when the user asks for an external app event:
 - "when a new row appears in Google Sheets"
 - "when a GitHub issue gets labeled"
 
-For external app event language like "when" or "whenever" an issue, task, ticket, row, record, or message is created, updated, moved, labeled, or otherwise changes, a Canvas-managed trigger is mandatory when `$CANVAS_CLI` is available. Do not create a scheduled polling fallback unless the user explicitly asks for polling or Canvas trigger discovery/creation is unavailable.
+For external app event language like "when" or "whenever" an issue, task, ticket, row, record, or message is created, updated, moved, labeled, or otherwise changes, prefer a Canvas-managed trigger when `$CANVAS_CLI` is available and the selected trigger exposes an output schema. Do not create a scheduled polling fallback unless the user explicitly asks for polling, Canvas trigger discovery/creation is unavailable, or the selected trigger component does not expose `data.outputSchema`.
 
 The Sketch workflow still lives in `scheduled_tasks`, but it must be represented as an external Canvas trigger:
 
@@ -130,9 +130,11 @@ Use `search-components` / `search_components` for trigger discovery.
 $CANVAS_CLI get-component-definition --key <component-key> --output json
 ```
 
-For Canvas-managed trigger components, read `data.outputSchema` from the response when it is present. Use that schema as the authoring-time contract for the event payload. Canvas-triggered Sketch workflow runs receive that trigger payload at `input.data`; workflow steps should reference fields from that stable path, such as `input.data.task` for task-based triggers. If `data.outputSchema` is absent, do not guess internal Canvas wrapper paths like `input.output.data`, `input.data.data`, or raw node-output structures.
+For Canvas-managed trigger components, read `data.outputSchema` from the response when it is present. Use that schema as the authoring-time contract for the event payload. Canvas-triggered Sketch workflow runs receive that trigger payload at `input.data`; workflow steps should reference fields from that stable path, such as `input.data.task` for task-based triggers.
 
-The trigger payload is often a compact event, not the complete app object. If the user's workflow needs fields that are not present in `data.outputSchema`, add a workflow step that fetches the full object by ID before using those fields. Do not write prompts that read absent fields as if they exist. For ClickUp task triggers, the trigger payload includes the task ID, name, URL, list, parent, status, and due date, but not the full description or all custom field values; fetch the task with `clickup-get-task` before copying descriptions, reading detailed custom fields, or creating subtasks from full task content. When creating ClickUp subtasks that must copy the parent description, pass the fetched parent description explicitly as the `description` prop to `clickup-create-task`.
+If `data.outputSchema` is absent, do not create a Canvas trigger workflow for this request. Treat the trigger as unsupported for Canvas-triggered Sketch workflows for now, and create a scheduled polling workflow instead. The polling workflow should periodically query the app for recent matching records, dedupe against workflow state, and process only new or changed records. Do not guess internal Canvas wrapper paths like `input.output.data`, `input.data.data`, or raw node-output structures.
+
+The trigger payload is often a compact event, not the complete app object. If the user's workflow needs fields that are not present in `data.outputSchema`, add a workflow step that fetches the full object by ID before using those fields. Do not write prompts that read absent fields as if they exist.
 
 When a workflow action/script calls Canvas with `direct-execute-action`, pass all required configured props from `get-component-definition`, even if the trigger already had similar props. Parse the CLI response with the standard action shape:
 
@@ -142,7 +144,18 @@ if (result.success === false) throw new Error(result.error?.message ?? result.er
 const actionData = result.data?.data ?? result.data;
 ```
 
-For ClickUp `clickup-get-task`, include at least `team_id` and `task_id`; include `list_id` too when known. Do not assume the useful task object is at `result.data`.
+### App-specific instructions
+
+Keep app-specific details here temporarily. Use them only for the named app, and prefer `get-component-definition` over these notes when Canvas exposes the same information.
+
+ClickUp:
+
+- For task triggers, the trigger payload includes the task ID, name, URL, list, parent, status, and due date, but not the full description or all custom field values. Fetch the task with `clickup-get-task` before copying descriptions, reading detailed custom fields, or creating subtasks from full task content.
+- For `clickup-get-task`, include at least `team_id` and `task_id`; include `list_id` too when known. Do not assume the useful task object is at `result.data`.
+- `clickup-get-task` does not return child subtasks.
+- For `clickup-find-tasks`, use the exact prop names from the component definition (`team_id`, `list_id`, `subtasks`, etc.). The useful list may be under `result.data.ret` for Pipedream-backed actions or under `result.data.data.tasks` for Canvas-normalized actions, so parse both shapes before filtering.
+- For workflows that need to update existing ClickUp subtasks under a parent task, use `clickup-find-tasks` with `team_id`, `list_id`, and `subtasks: true`, then filter returned tasks where `task.parent` or `task.top_level_parent` equals the parent task ID.
+- When creating or updating ClickUp subtasks that must copy the parent description, pass the fetched parent description explicitly as the `description` prop.
 
 4. Resolve required dropdowns with remote options only when needed:
 
